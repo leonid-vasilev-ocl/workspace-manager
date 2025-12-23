@@ -43,7 +43,7 @@ fn is_same_tmux_session(session_name: &str) -> bool {
         .ok()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
 
-    Some(session_name.to_string()) == current_session
+    Some(session_name) == current_session.as_deref()
 }
 
 fn is_in_tmux() -> bool {
