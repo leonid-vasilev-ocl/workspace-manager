@@ -2,7 +2,7 @@ mod config;
 mod fzf;
 mod tmux;
 
-use crate::{config::Config, tmux::go_to_tmux};
+use crate::config::Config;
 use anyhow::{Ok, Result, anyhow};
 use std::path::PathBuf;
 
@@ -12,11 +12,13 @@ fn main() {
         eprintln!("error: {}", err);
         std::process::exit(1)
     }
+
+    std::process::exit(0)
 }
 
 fn handle_app(args: Vec<String>) -> Result<()> {
     if args.len() <= 1 {
-        handle_ws_select()?
+        handle_ws_select(false)?
     } else {
         handle_ws_modify(args)?
     }
@@ -31,6 +33,7 @@ fn handle_ws_modify(args: Vec<String>) -> Result<()> {
         "add" => handle_add(args)?,
         "remove" => handle_remove(args)?,
         "ls" => handle_ls()?,
+        "-p" => handle_ws_select(true)?,
         _ => {
             return Err(anyhow!(
                 "unknown argument: {}. Use (add, remove or ls)",
@@ -95,7 +98,8 @@ fn handle_remove(args: Vec<String>) -> Result<()> {
     Ok(())
 }
 
-fn handle_ws_select() -> Result<()> {
+// print session name instead of switch_client
+fn handle_ws_select(only_print_session_name: bool) -> Result<()> {
     let config = Config::load()?;
     let workspaces = config.get_ws_all();
 
@@ -107,7 +111,22 @@ fn handle_ws_select() -> Result<()> {
 
     let session_name = get_session_name(&session_path);
 
-    go_to_tmux(&session_name, &session_path)?;
+    let is_in_tmux = tmux::is_in_tmux();
+    let attach_to_tmux_external = !is_in_tmux && !only_print_session_name;
+    let attach_to_tmux_from_tmux = is_in_tmux && !only_print_session_name;
+
+    if is_in_tmux && tmux::is_same_tmux_session(&session_name) {
+        return Ok(());
+    }
+
+    tmux::new_session(&session_name, &session_path, attach_to_tmux_external)?;
+    if attach_to_tmux_from_tmux {
+        tmux::switch_client(&session_name)?;
+    }
+
+    if only_print_session_name {
+        println!("{}", &session_name)
+    }
 
     Ok(())
 }

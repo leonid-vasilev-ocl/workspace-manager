@@ -1,10 +1,8 @@
-use std::process::Command;
+use std::process::{Command, ExitStatus};
 
 use anyhow::Result;
 
-pub fn go_to_tmux(session_name: &str, session_path: &str) -> Result<()> {
-    let is_in_tmux = is_in_tmux();
-
+pub fn new_session(session_name: &str, session_path: &str, attach: bool) -> Result<ExitStatus> {
     let mut tmux_command = Command::new("tmux");
     tmux_command
         .arg("new-session")
@@ -14,27 +12,24 @@ pub fn go_to_tmux(session_name: &str, session_path: &str) -> Result<()> {
         .arg("-c")
         .arg(&session_path);
 
-    if is_in_tmux {
-        if is_same_tmux_session(session_name) {
-            println!("same session. return");
-            return Ok(());
-        }
+    let status = match attach {
+        false => tmux_command.arg("-d").status()?,
+        true => tmux_command.status()?,
+    };
 
-        tmux_command.arg("-d").status()?;
+    Ok(status)
+}
 
-        Command::new("tmux")
-            .arg("switch-client")
-            .arg("-t")
-            .arg(&session_name)
-            .status()?;
-    } else {
-        tmux_command.status()?;
-    }
-
+pub fn switch_client(session_name: &str) -> Result<()> {
+    Command::new("tmux")
+        .arg("switch-client")
+        .arg("-t")
+        .arg(&session_name)
+        .spawn()?;
     Ok(())
 }
 
-fn is_same_tmux_session(session_name: &str) -> bool {
+pub fn is_same_tmux_session(session_name: &str) -> bool {
     let current_session = Command::new("tmux")
         .arg("display-message")
         .arg("-p")
@@ -46,6 +41,6 @@ fn is_same_tmux_session(session_name: &str) -> bool {
     Some(session_name) == current_session.as_deref()
 }
 
-fn is_in_tmux() -> bool {
+pub fn is_in_tmux() -> bool {
     std::env::var("TMUX").is_ok()
 }
