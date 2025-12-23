@@ -1,13 +1,10 @@
 mod config;
 mod fzf;
+mod tmux;
 
-use crate::config::Config;
-use anyhow::{Context, Ok, Result, anyhow};
-use std::{
-    io::Write,
-    path::PathBuf,
-    process::{Command, Stdio},
-};
+use crate::{config::Config, tmux::go_to_tmux};
+use anyhow::{Ok, Result, anyhow};
+use std::path::PathBuf;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -101,81 +98,16 @@ fn handle_remove(args: Vec<String>) -> Result<()> {
 fn handle_ws_select() -> Result<()> {
     let config = Config::load()?;
     let workspaces = config.get_ws_all();
-    let mut child = Command::new("fzf")
-        .arg("--preview")
-        .arg(
-            "sh -c '
-    sess=$(basename {2..}); 
-    if tmux has-session -t \"$sess\" 2>/dev/null; then
-        tmux list-windows -t \"$sess\" -F \"#I:#W\" | while read -r line; do
-            index=$(echo $line | cut -d: -f1);
-            name=$(echo $line | cut -d: -f2);
-            printf \"\\033[32m── Window $index: $name ──\\033[0m\\n\";
-            tmux capture-pane -pt \"$sess:$index\" -eS -5 -E 10 | sed \"s/^/  /\";
-            echo \"\";
-        done;
-    else
-        printf \"\\033[33m--- Session Not Active ---\\033[0m\\n\";
-        ls -p --color=always {2..};
-    fi
-'",
-        )
-        .arg("--preview-window")
-        .arg("right:65%:border-left")
-        .arg("--layout=reverse") // Puts the input at the top
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()?;
 
-    let input = workspaces
-        .iter()
-        .enumerate()
-        .map(|(i, ws)| format!("{} {}", i + 1, ws.path.to_string_lossy()))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let session_path = fzf::call_fzf_with_workspaces(workspaces)?;
 
-    {
-        let mut stdin = child.stdin.take().context("Failed to open fzf stdin")?;
-        stdin.write_all(input.as_bytes())?;
-    }
-
-    let output = child.wait_with_output().expect("can't get output from fzf");
-
-    let selected = String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .split_once(" ")
-        .unwrap_or_default()
-        .1
-        .to_string();
-
-    if selected.is_empty() {
+    if session_path.is_empty() {
         return Ok(());
     }
 
-    let session_name = get_session_name(&selected);
+    let session_name = get_session_name(&session_path);
 
-    let is_in_tmux = std::env::var("TMUX").is_ok();
-
-    let mut tmux_command = Command::new("tmux");
-    tmux_command
-        .arg("new-session")
-        .arg("-A")
-        .arg("-s")
-        .arg(&session_name)
-        .arg("-c")
-        .arg(&selected);
-
-    if is_in_tmux {
-        tmux_command.arg("-d").status()?;
-
-        Command::new("tmux")
-            .arg("switch-client")
-            .arg("-t")
-            .arg(&session_name)
-            .status()?;
-    } else {
-        tmux_command.status()?;
-    }
+    go_to_tmux(&session_name, &session_path)?;
 
     Ok(())
 }
