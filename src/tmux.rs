@@ -20,6 +20,13 @@ pub fn new_session(session_name: &str, session_path: &str, attach: bool) -> Resu
     Ok(status)
 }
 
+pub fn has_session(session_name: &str) -> Result<bool> {
+    let status = Command::new("tmux")
+        .args(["has-session", "-t", &session_name])
+        .status()?;
+    Ok(status.success())
+}
+
 pub fn switch_client(session_name: &str) -> Result<()> {
     Command::new("tmux")
         .arg("switch-client")

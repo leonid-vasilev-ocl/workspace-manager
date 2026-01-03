@@ -112,6 +112,7 @@ fn handle_ws_select(only_print_session_name: bool) -> Result<()> {
     let session_name = get_session_name(&session_path);
 
     let is_in_tmux = tmux::is_in_tmux();
+
     let attach_to_tmux_external = !is_in_tmux && !only_print_session_name;
     let attach_to_tmux_from_tmux = is_in_tmux && !only_print_session_name;
 
@@ -119,8 +120,16 @@ fn handle_ws_select(only_print_session_name: bool) -> Result<()> {
         return Ok(());
     }
 
-    tmux::new_session(&session_name, &session_path, attach_to_tmux_external)?;
+    if !is_in_tmux || !tmux::has_session(&session_name)? {
+        println!(
+            "creating session, name: {} path: {}",
+            &session_name, &session_path
+        );
+        tmux::new_session(&session_name, &session_path, attach_to_tmux_external)?;
+    }
+
     if attach_to_tmux_from_tmux {
+        println!("swtiching to session: {}", &session_name);
         tmux::switch_client(&session_name)?;
     }
 
