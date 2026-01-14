@@ -6,10 +6,19 @@ use crate::config::{Config, WorkspaceOwner};
 use anyhow::{Context, Ok, Result, anyhow};
 use std::path::PathBuf;
 
+const HELP_TEXT: &str = r"
+usage: wsm [command]
+commands:
+    select [-p]         Select a workspace (default command). Use -p to only println
+    add [path]          Add a workspace (default path is current directory)
+    remove [path]       Remove a workspace (default path is current directory)
+    ls                  List all workspaces
+    ";
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if let Err(err) = handle_app(&args) {
-        eprintln!("error: {:#} \n{}", err, get_help());
+        eprintln!("error: {:#} \n{}", err, HELP_TEXT);
         std::process::exit(1)
     }
 
@@ -18,18 +27,6 @@ fn main() {
 
 fn handle_app(args: &[String]) -> Result<()> {
     handle_ws_commands(&args[1..])
-}
-
-fn get_help() -> String {
-    return r"
-usage: wsm [command]
-commands:
-    select [-p]         Select a workspace (default command). Use -p to only println
-    add [path]          Add a workspace (default path is current directory)
-    remove [path]       Remove a workspace (default path is current directory)
-    ls                  List all workspaces
-    "
-    .to_string();
 }
 
 fn handle_ws_commands(args: &[String]) -> Result<()> {
@@ -43,7 +40,7 @@ fn handle_ws_commands(args: &[String]) -> Result<()> {
         "remove" => handle_remove(rest_args)?,
         "ls" => handle_ls()?,
         "help" => {
-            println!("{}", get_help());
+            println!("{}", HELP_TEXT);
         }
         _ => {
             return Err(anyhow!("unknown command: {}", main_arg));
