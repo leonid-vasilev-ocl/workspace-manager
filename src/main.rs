@@ -2,50 +2,58 @@ mod config;
 mod fzf;
 mod tmux;
 
-use crate::config::Config;
-use anyhow::{Ok, Result, anyhow};
+use crate::config::{Config, WorkspaceOwner};
+use anyhow::{Context, Ok, Result, anyhow};
 use std::path::PathBuf;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if let Err(err) = handle_app(args) {
-        eprintln!("error: {}", err);
+    if let Err(err) = handle_app(&args) {
+        eprintln!("error: {:#} \n{}", err, get_help());
         std::process::exit(1)
     }
 
     std::process::exit(0)
 }
 
-fn handle_app(args: Vec<String>) -> Result<()> {
-    if args.len() <= 1 {
-        handle_ws_select(false)?
-    } else {
-        handle_ws_modify(args)?
-    }
-
-    Ok(())
+fn handle_app(args: &[String]) -> Result<()> {
+    handle_ws_commands(&args[1..])
 }
 
-fn handle_ws_modify(args: Vec<String>) -> Result<()> {
-    let main_arg = &args[1];
+fn get_help() -> String {
+    return r"
+usage: wsm [command]
+commands:
+    select [-p]         Select a workspace (default command). Use -p to only println
+    add [path]          Add a workspace (default path is current directory)
+    remove [path]       Remove a workspace (default path is current directory)
+    ls                  List all workspaces
+    "
+    .to_string();
+}
+
+fn handle_ws_commands(args: &[String]) -> Result<()> {
+    let (main_arg, rest_args) = args
+        .split_first()
+        .with_context(|| anyhow!("missing argument"))?;
 
     match main_arg.as_str() {
-        "add" => handle_add(args)?,
-        "remove" => handle_remove(args)?,
+        "select" => handle_ws_select(rest_args)?,
+        "add" => handle_add(rest_args)?,
+        "remove" => handle_remove(rest_args)?,
         "ls" => handle_ls()?,
-        "-p" => handle_ws_select(true)?,
+        "help" => {
+            println!("{}", get_help());
+        }
         _ => {
-            return Err(anyhow!(
-                "unknown argument: {}. Use (add, remove or ls)",
-                main_arg
-            ));
+            return Err(anyhow!("unknown command: {}", main_arg));
         }
     };
 
     Ok(())
 }
 
-fn get_path_from_args(args: Vec<String>) -> Result<PathBuf> {
+fn get_path_from_args(args: &[String]) -> Result<PathBuf> {
     let path = match args.len() {
         2 => std::env::current_dir()?,
         3 => PathBuf::from(&args[2]).canonicalize()?,
@@ -59,7 +67,7 @@ fn get_path_from_args(args: Vec<String>) -> Result<PathBuf> {
     Ok(path)
 }
 
-fn handle_add(args: Vec<String>) -> Result<()> {
+fn handle_add(args: &[String]) -> Result<()> {
     let path = get_path_from_args(args)?;
     let mut config = Config::load()?;
 
@@ -83,7 +91,7 @@ fn handle_ls() -> Result<()> {
     Ok(())
 }
 
-fn handle_remove(args: Vec<String>) -> Result<()> {
+fn handle_remove(args: &[String]) -> Result<()> {
     let path = get_path_from_args(args)?;
     let mut config = Config::load()?;
 
@@ -99,7 +107,9 @@ fn handle_remove(args: Vec<String>) -> Result<()> {
 }
 
 // print session name instead of switch_client
-fn handle_ws_select(only_print_session_name: bool) -> Result<()> {
+fn handle_ws_select(args: &[String]) -> Result<()> {
+    let only_print_session_name = args.contains(&"-p".to_string());
+
     let config = Config::load()?;
     let workspaces = config.get_ws_all();
 
