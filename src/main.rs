@@ -2,7 +2,7 @@ mod config;
 mod fzf;
 mod tmux;
 
-use crate::config::{Config, WorkspaceOwner};
+use crate::config::Config;
 use anyhow::{Context, Ok, Result, anyhow};
 use std::path::PathBuf;
 

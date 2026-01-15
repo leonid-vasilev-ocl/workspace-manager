@@ -62,9 +62,9 @@ pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<String> {
 
     let selected = String::from_utf8_lossy(&output.stdout)
         .trim()
-        .split_once(" ")
+        .split(" ")
+        .last()
         .unwrap_or_default()
-        .1
         .to_string();
 
     Ok(selected)
