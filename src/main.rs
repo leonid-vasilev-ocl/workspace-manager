@@ -4,7 +4,7 @@ mod tmux;
 
 use crate::config::Config;
 use anyhow::{Context, Ok, Result, anyhow};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const HELP_TEXT: &str = r"
 usage: wsm [command]
@@ -110,13 +110,12 @@ fn handle_ws_select(args: &[String]) -> Result<()> {
     let config = Config::load()?;
     let workspaces = config.get_ws_all();
 
-    let session_path = fzf::call_fzf_with_workspaces(workspaces)?;
+    let session_path = match fzf::call_fzf_with_workspaces(workspaces)? {
+        Some(p) => p.as_ref(),
+        None => return Ok(()),
+    };
 
-    if session_path.is_empty() {
-        return Ok(());
-    }
-
-    let session_name = get_session_name(&session_path);
+    let session_name = get_session_name(session_path);
 
     let is_in_tmux = tmux::is_in_tmux();
 
@@ -128,15 +127,10 @@ fn handle_ws_select(args: &[String]) -> Result<()> {
     }
 
     if !is_in_tmux || !tmux::has_session(&session_name)? {
-        println!(
-            "creating session, name: {} path: {}",
-            &session_name, &session_path
-        );
-        tmux::new_session(&session_name, &session_path, attach_to_tmux_external)?;
+        tmux::new_session(&session_name, session_path, attach_to_tmux_external)?;
     }
 
     if attach_to_tmux_from_tmux {
-        println!("swtiching to session: {}", &session_name);
         tmux::switch_client(&session_name)?;
     }
 
@@ -147,9 +141,8 @@ fn handle_ws_select(args: &[String]) -> Result<()> {
     Ok(())
 }
 
-fn get_session_name(path: &str) -> String {
-    std::path::Path::new(path)
-        .file_name()
+fn get_session_name(path: &Path) -> String {
+    path.file_name()
         .unwrap_or_default()
         .to_string_lossy()
         .replace(".", "_")

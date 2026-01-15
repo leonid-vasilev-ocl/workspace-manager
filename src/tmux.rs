@@ -1,8 +1,11 @@
-use std::process::{Command, ExitStatus};
+use std::{
+    path::Path,
+    process::{Command, ExitStatus},
+};
 
 use anyhow::Result;
 
-pub fn new_session(session_name: &str, session_path: &str, attach: bool) -> Result<ExitStatus> {
+pub fn new_session(session_name: &str, session_path: &Path, attach: bool) -> Result<ExitStatus> {
     let mut tmux_command = Command::new("tmux");
     tmux_command
         .arg("new-session")

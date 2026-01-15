@@ -6,7 +6,7 @@ use std::{
 
 use crate::config::Workspace;
 
-pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<String> {
+pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Workspace>> {
     let mut child = Command::new("fzf")
         .arg("--layout=reverse") // Puts the input at the top
         .arg("--preview")
@@ -46,7 +46,7 @@ pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<String> {
                 .with_context(|| {
                     format!("can not get name for path: {}", ws.path.to_string_lossy())
                 })?;
-            Ok(format!("{} {} {}", i + 1, name, ws.path.to_string_lossy()))
+            Ok(format!("{} {} {}", i, name, ws.path.to_string_lossy()))
         })
         .collect::<Result<Vec<String>>>()?
         .join("\n");
@@ -60,12 +60,11 @@ pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<String> {
         .wait_with_output()
         .context("can't get output from fzf")?;
 
-    let selected = String::from_utf8_lossy(&output.stdout)
+    let workspace = String::from_utf8_lossy(&output.stdout)
         .trim()
-        .split(" ")
-        .last()
-        .unwrap_or_default()
-        .to_string();
+        .split_once(" ")
+        .and_then(|(first, _)| first.parse::<usize>().ok())
+        .and_then(|index| workspaces.get(index));
 
-    Ok(selected)
+    Ok(workspace)
 }
