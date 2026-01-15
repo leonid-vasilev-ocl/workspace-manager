@@ -30,7 +30,7 @@ pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<String> {
         .arg("--preview-window")
         .arg("hidden")
         .arg("--bind")
-        .arg("ctrl-p:toggle-preview")
+        .arg("ctrl-t:toggle-preview")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
@@ -38,8 +38,17 @@ pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<String> {
     let input = workspaces
         .iter()
         .enumerate()
-        .map(|(i, ws)| format!("{} {}", i + 1, ws.path.to_string_lossy()))
-        .collect::<Vec<_>>()
+        .map(|(i, ws)| {
+            let name = ws
+                .path
+                .file_name()
+                .and_then(|os| os.to_str())
+                .with_context(|| {
+                    format!("can not get name for path: {}", ws.path.to_string_lossy())
+                })?;
+            Ok(format!("{} {} {}", i + 1, name, ws.path.to_string_lossy()))
+        })
+        .collect::<Result<Vec<String>>>()?
         .join("\n");
 
     {
