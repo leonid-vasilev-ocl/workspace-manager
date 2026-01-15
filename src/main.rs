@@ -52,8 +52,8 @@ fn handle_ws_commands(args: &[String]) -> Result<()> {
 
 fn get_path_from_args(args: &[String]) -> Result<PathBuf> {
     let path = match args.len() {
-        2 => std::env::current_dir()?,
-        3 => PathBuf::from(&args[2]).canonicalize()?,
+        0 => std::env::current_dir()?,
+        1 => PathBuf::from(&args[0]).canonicalize()?,
         _ => Err(anyhow!("too many arguments"))?,
     };
 

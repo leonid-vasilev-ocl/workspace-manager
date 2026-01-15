@@ -8,6 +8,7 @@ use crate::config::Workspace;
 
 pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<String> {
     let mut child = Command::new("fzf")
+        .arg("--layout=reverse") // Puts the input at the top
         .arg("--preview")
         .arg(
             "sh -c '
@@ -27,8 +28,9 @@ pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<String> {
 '",
         )
         .arg("--preview-window")
-        .arg("right:65%:border-left")
-        .arg("--layout=reverse") // Puts the input at the top
+        .arg("hidden")
+        .arg("--bind")
+        .arg("ctrl-p:toggle-preview")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
