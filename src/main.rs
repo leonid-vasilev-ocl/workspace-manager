@@ -1,3 +1,4 @@
+mod commands;
 mod config;
 mod fzf;
 mod tmux;
@@ -9,10 +10,11 @@ use std::path::{Path, PathBuf};
 const HELP_TEXT: &str = r"
 usage: wsm [command]
 commands:
-    select [-p]         Select a workspace (default command). Use -p to only println
-    add [path]          Add a workspace (default path is current directory)
-    remove [path]       Remove a workspace (default path is current directory)
-    ls                  List all workspaces
+    select [-args] [-p]   Select a workspace (default command). Use -p to only println
+    add    [-args][path]  Add a workspace (default path is current directory)
+    remove [path]         Remove a workspace (default path is current directory)
+    help   [command]      Show help information
+    ls     [-args]        List all workspaces
     ";
 
 fn main() {
@@ -72,7 +74,7 @@ fn handle_add(args: &[String]) -> Result<()> {
         return Err(anyhow!("workspace already exists"));
     }
 
-    config.add_ws(&path);
+    config.add_ws(&path, None);
     config.save()?;
 
     println!("Added workspace: {}", path.display());
