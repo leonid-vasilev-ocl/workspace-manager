@@ -3,60 +3,99 @@ mod config;
 mod fzf;
 mod tmux;
 
-use crate::config::Config;
-use anyhow::{Context, Ok, Result, anyhow};
+use crate::{
+    commands::{ArgType, Command, CommandDef, ParseError},
+    config::Config,
+};
+use anyhow::{Result, anyhow};
 use std::path::{Path, PathBuf};
 
-const HELP_TEXT: &str = r"
-usage: wsm [command]
-commands:
-    select [-args] [-p]   Select a workspace (default command). Use -p to only println
-    add    [-args][path]  Add a workspace (default path is current directory)
-    remove [path]         Remove a workspace (default path is current directory)
-    help   [command]      Show help information
-    ls     [-args]        List all workspaces
-    ";
+fn define_command() -> CommandDef {
+    let command = CommandDef::new(
+        "wsm",
+        "Command line workspace multiplexer, add workspaces to list and swtitch between them using fzf and tmux",
+    );
+
+    let select = CommandDef::new(
+        "select",
+        "Select a workspace in fzf and switch to tmux session(create + switch)",
+    )
+    .add_arg(
+        "p",
+        "print",
+        ArgType::Flag,
+        "creates tmux workspace and prints name instead of switching",
+    );
+    let command = command.add_subcommand(select);
+
+    let add = CommandDef::new("add", "Add a workspace to fzf").add_arg(
+        "n",
+        "name",
+        ArgType::Value,
+        "Set specific custom name for the workspace",
+    );
+    let command = command.add_subcommand(add);
+
+    let remove = CommandDef::new("remove", "remove workspace from fzf");
+    let command = command.add_subcommand(remove);
+
+    let ls = CommandDef::new("ls", "list all workspaces added");
+    let command = command.add_subcommand(ls);
+
+    command
+}
+
+fn handle_command() -> Result<()> {
+    let command_def = define_command();
+    let command = match command_def.parse(std::env::args()) {
+        Err(err) => {
+            let path = match &err {
+                ParseError::UnknownCommand { path, name: _ } => path,
+                ParseError::UnknownArg { path, name: _ } => path,
+                ParseError::MissingArgValue { path, name: _ } => path,
+                ParseError::UnexpectedArgValue { path, name: _ } => path,
+                ParseError::MissingValue { path, name: _ } => path,
+                ParseError::HelpRequested { path } => path,
+            };
+            if let ParseError::HelpRequested { path: _ } = err {
+                eprintln!("{}", command_def.get_help(path));
+            } else {
+                eprintln!("{:#} \n{}", err, command_def.get_help(path));
+            }
+            return Err(anyhow!(err));
+        }
+        Ok(command) => anyhow::Ok(command),
+    }?;
+
+    let path = &command.get_path()[1..];
+
+    let cmd_result = match path {
+        ["select"] => handle_ws_select(&command),
+        ["add"] => handle_add(&command),
+        ["remove"] => handle_remove(&command),
+        ["ls"] => handle_ls(),
+        _ => Err(anyhow!("Command not found")),
+    };
+
+    if let Err(ref e) = cmd_result {
+        eprintln!("Error: {:#}", e);
+    }
+
+    Ok(())
+}
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    if let Err(err) = handle_app(&args) {
-        eprintln!("error: {:#} \n{}", err, HELP_TEXT);
+    if let Err(_) = handle_command() {
         std::process::exit(1)
     }
 
     std::process::exit(0)
 }
 
-fn handle_app(args: &[String]) -> Result<()> {
-    handle_ws_commands(&args[1..])
-}
-
-fn handle_ws_commands(args: &[String]) -> Result<()> {
-    let (main_arg, rest_args) = args
-        .split_first()
-        .with_context(|| anyhow!("missing argument"))?;
-
-    match main_arg.as_str() {
-        "select" => handle_ws_select(rest_args)?,
-        "add" => handle_add(rest_args)?,
-        "remove" => handle_remove(rest_args)?,
-        "ls" => handle_ls()?,
-        "help" => {
-            println!("{}", HELP_TEXT);
-        }
-        _ => {
-            return Err(anyhow!("unknown command: {}", main_arg));
-        }
-    };
-
-    Ok(())
-}
-
-fn get_path_from_args(args: &[String]) -> Result<PathBuf> {
-    let path = match args.len() {
-        0 => std::env::current_dir()?,
-        1 => PathBuf::from(&args[0]).canonicalize()?,
-        _ => Err(anyhow!("too many arguments"))?,
+fn get_path_from_str(val: &str) -> Result<PathBuf> {
+    let path = match val {
+        "" => std::env::current_dir()?,
+        _ => PathBuf::from(val).canonicalize()?,
     };
 
     if !path.is_dir() {
@@ -66,8 +105,9 @@ fn get_path_from_args(args: &[String]) -> Result<PathBuf> {
     Ok(path)
 }
 
-fn handle_add(args: &[String]) -> Result<()> {
-    let path = get_path_from_args(args)?;
+fn handle_add(cmd: &Command) -> Result<()> {
+    let positional = cmd.get_positional_string();
+    let path = get_path_from_str(&positional)?;
     let mut config = Config::load()?;
 
     if config.has_ws(&path) {
@@ -90,8 +130,9 @@ fn handle_ls() -> Result<()> {
     Ok(())
 }
 
-fn handle_remove(args: &[String]) -> Result<()> {
-    let path = get_path_from_args(args)?;
+fn handle_remove(cmd: &Command) -> Result<()> {
+    let positional = cmd.get_positional_string();
+    let path = get_path_from_str(&positional)?;
     let mut config = Config::load()?;
 
     if (config.has_ws(&path)) == false {
@@ -106,8 +147,12 @@ fn handle_remove(args: &[String]) -> Result<()> {
 }
 
 // print session name instead of switch_client
-fn handle_ws_select(args: &[String]) -> Result<()> {
-    let only_print_session_name = args.contains(&"-p".to_string());
+fn handle_ws_select(cmd: &Command) -> Result<()> {
+    let only_print_session_name = cmd.get_arg("print").is_some();
+    println!(
+        "Command: {:?}, print_session_name: {}",
+        cmd, only_print_session_name
+    );
 
     let config = Config::load()?;
     let workspaces = config.get_ws_all();
