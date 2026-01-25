@@ -66,18 +66,29 @@ fn get_path_from_args(args: &[String]) -> Result<PathBuf> {
     Ok(path)
 }
 
-fn handle_add(args: &[String]) -> Result<()> {
-    let path = get_path_from_args(args)?;
+fn handle_add(cmd: &Command) -> Result<()> {
+    let positional = cmd.get_positional_string();
+    let path = get_path_from_str(&positional)?;
+
+    let name = cmd.get_arg_value("name");
+
     let mut config = Config::load()?;
 
     if config.has_ws(&path) {
         return Err(anyhow!("workspace already exists"));
     }
 
-    config.add_ws(&path, None);
+    config.add_ws(&path, name.map(|s| s.to_string()));
     config.save()?;
 
-    println!("Added workspace: {}", path.display());
+    println!(
+        "Added workspace: {} {}",
+        path.display(),
+        match name {
+            Some(val) => format!("with name: {}", val),
+            None => String::from(""),
+        }
+    );
     Ok(())
 }
 
@@ -106,8 +117,8 @@ fn handle_remove(args: &[String]) -> Result<()> {
 }
 
 // print session name instead of switch_client
-fn handle_ws_select(args: &[String]) -> Result<()> {
-    let only_print_session_name = args.contains(&"-p".to_string());
+fn handle_ws_select(cmd: &Command) -> Result<()> {
+    let only_print_session_name = cmd.get_arg("print").is_some();
 
     let config = Config::load()?;
     let workspaces = config.get_ws_all();
