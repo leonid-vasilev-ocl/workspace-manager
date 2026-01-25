@@ -6,6 +6,7 @@ use std::fs;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Workspace {
+    pub name: Option<String>,
     pub path: PathBuf,
 }
 
@@ -61,9 +62,10 @@ impl Config {
         &self.workspaces
     }
 
-    pub fn add_ws<P: AsRef<Path>>(&mut self, path: P) {
+    pub fn add_ws<P: AsRef<Path>>(&mut self, path: P, name: Option<String>) {
         let p = path.as_ref();
         self.workspaces.push(Workspace {
+            name,
             path: p.to_path_buf(),
         });
     }

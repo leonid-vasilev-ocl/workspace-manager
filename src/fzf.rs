@@ -39,13 +39,16 @@ pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Work
         .iter()
         .enumerate()
         .map(|(i, ws)| {
-            let name = ws
-                .path
-                .file_name()
-                .and_then(|os| os.to_str())
-                .with_context(|| {
-                    format!("can not get name for path: {}", ws.path.to_string_lossy())
-                })?;
+            let name = match &ws.name {
+                Some(n) => n,
+                None => ws
+                    .path
+                    .file_name()
+                    .and_then(|os| os.to_str())
+                    .with_context(|| {
+                        format!("can not get name for path: {}", ws.path.to_string_lossy())
+                    })?,
+            };
             Ok(format!("{} {} {}", i, name, ws.path.to_string_lossy()))
         })
         .collect::<Result<Vec<String>>>()?

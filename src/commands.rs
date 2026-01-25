@@ -175,7 +175,6 @@ impl CommandDef {
     pub fn parse(&self, args: std::env::Args) -> Result<Command, ParseError> {
         let args_vec: Vec<String> = args.collect();
         let tokens = tokenize(&args_vec);
-        println!("tokens: {:?}", tokens);
         self.parse_intrnal(&tokens, vec![])
     }
 
@@ -375,6 +374,13 @@ impl Command {
 
     pub fn get_arg(&self, long: &str) -> Option<&Arg> {
         self.args.get(long)
+    }
+
+    pub fn get_arg_value(&self, long: &str) -> Option<&str> {
+        self.args.get(long).and_then(|arg| match arg {
+            Arg::Value(val) => Some(val.as_str()),
+            Arg::Flag => None,
+        })
     }
 
     pub fn get_positional_string(&self) -> String {
