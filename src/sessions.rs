@@ -1,0 +1,41 @@
+use std::{path::Path, process::ExitStatus};
+
+use crate::tmux::TmuxSessionManager;
+use anyhow::Result;
+
+pub enum SessionManager {
+    Tmux(TmuxSessionManager),
+}
+
+pub trait SessionManagerImpl {
+    fn new_session(&self, session_name: &str, session_path: &Path) -> Result<ExitStatus>;
+    fn has_session(&self, session_name: &str) -> Result<bool>;
+    fn switch_client(&self, session_name: &str) -> Result<()>;
+    fn is_same_session(&self, session_name: &str) -> bool;
+}
+
+impl SessionManagerImpl for SessionManager {
+    fn new_session(&self, session_name: &str, session_path: &Path) -> Result<ExitStatus> {
+        match self {
+            Self::Tmux(tmux) => tmux.new_session(session_name, session_path),
+        }
+    }
+
+    fn has_session(&self, session_name: &str) -> Result<bool> {
+        match self {
+            Self::Tmux(tmux) => tmux.has_session(session_name),
+        }
+    }
+
+    fn switch_client(&self, session_name: &str) -> Result<()> {
+        match self {
+            Self::Tmux(tmux) => tmux.switch_client(session_name),
+        }
+    }
+
+    fn is_same_session(&self, session_name: &str) -> bool {
+        match self {
+            Self::Tmux(tmux) => tmux.is_same_session(session_name),
+        }
+    }
+}

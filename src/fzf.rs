@@ -4,7 +4,15 @@ use std::{
     process::{Command, Stdio},
 };
 
-use crate::config::Workspace;
+use crate::{config::Workspace, selectors::SelectorImpl};
+
+pub struct FzfSelector;
+
+impl SelectorImpl for FzfSelector {
+    fn select<'a>(&self, workspaces: &'a [Workspace]) -> Result<Option<&'a Workspace>> {
+        Ok(call_fzf_with_workspaces(workspaces)?)
+    }
+}
 
 pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Workspace>> {
     let mut child = Command::new("fzf")

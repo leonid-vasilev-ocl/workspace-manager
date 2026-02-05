@@ -1,11 +1,16 @@
 mod commands;
 mod config;
 mod fzf;
+mod notifications;
+mod selectors;
+mod sessions;
 mod tmux;
 
 use crate::{
     commands::{ArgType, Command, CommandDef, ParseError},
     config::Config,
+    selectors::Selector,
+    sessions::{SessionManager, SessionManagerImpl},
 };
 use anyhow::{Result, anyhow};
 use std::path::{Path, PathBuf};
@@ -156,35 +161,32 @@ fn handle_remove(cmd: &Command) -> Result<()> {
     Ok(())
 }
 
-// print session name instead of switch_client
 fn handle_ws_select(cmd: &Command) -> Result<()> {
     let only_print_session_name = cmd.get_arg("print").is_some();
 
     let config = Config::load()?;
     let workspaces = config.get_ws_all();
 
-    let session_path = match fzf::call_fzf_with_workspaces(workspaces)? {
+    let selector = Selector::Fzf(fzf::FzfSelector);
+
+    let session_path = match selector.select(workspaces)? {
         Some(p) => p.as_ref(),
         None => return Ok(()),
     };
 
+    let sessions = SessionManager::Tmux(tmux::TmuxSessionManager);
     let session_name = get_session_name(session_path);
 
-    let is_in_tmux = tmux::is_in_tmux();
-
-    let attach_to_tmux_external = !is_in_tmux && !only_print_session_name;
-    let attach_to_tmux_from_tmux = is_in_tmux && !only_print_session_name;
-
-    if is_in_tmux && tmux::is_same_tmux_session(&session_name) {
+    if sessions.is_same_session(&session_name) {
         return Ok(());
     }
 
-    if !is_in_tmux || !tmux::has_session(&session_name)? {
-        tmux::new_session(&session_name, session_path, attach_to_tmux_external)?;
+    if !sessions.has_session(&session_name)? {
+        sessions.new_session(&session_name, session_path)?;
     }
 
-    if attach_to_tmux_from_tmux {
-        tmux::switch_client(&session_name)?;
+    if !only_print_session_name {
+        sessions.switch_client(&session_name)?;
     }
 
     if only_print_session_name {
