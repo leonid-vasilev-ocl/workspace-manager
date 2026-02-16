@@ -38,6 +38,7 @@ impl SessionManagerImpl for TmuxSessionManager {
         }
         Ok(())
     }
+
     fn is_same_session(&self, session_name: &str) -> bool {
         if !is_in_tmux() {
             return false;
@@ -52,6 +53,30 @@ impl SessionManagerImpl for TmuxSessionManager {
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
 
         Some(session_name) == current_session.as_deref()
+    }
+
+    fn get_attached_session(&self) -> Option<String> {
+        if !is_in_tmux() {
+            return None;
+        }
+
+        let output = Command::new("tmux")
+            .arg("list-sessions")
+            .output()
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+
+        if let Some(sessions) = output {
+            let sessions: Vec<&str> = sessions.split("\n").collect();
+
+            return sessions
+                .iter()
+                .find(|s| s.contains("(attached)"))
+                .and_then(|s| s.split_once(":"))
+                .map(|s| s.0.to_string());
+        }
+
+        None
     }
 }
 

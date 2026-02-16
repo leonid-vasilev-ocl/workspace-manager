@@ -1,5 +1,5 @@
-use crate::config::Workspace;
 use crate::fzf::FzfSelector;
+use crate::workspace::Workspace;
 use anyhow::Result;
 
 pub enum Selector {

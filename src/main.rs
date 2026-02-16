@@ -1,16 +1,22 @@
+#[macro_use]
 mod commands;
+#[macro_use]
+mod log;
 mod config;
 mod fzf;
-mod notifications;
+mod ns;
 mod selectors;
 mod sessions;
 mod tmux;
+mod workspace;
 
 use crate::{
     commands::{ArgType, Command, CommandDef, ParseError},
     config::Config,
+    log::init_logger,
     selectors::Selector,
-    sessions::{SessionManager, SessionManagerImpl},
+    sessions::{SessionManager, SessionManagerImpl, get_formatted_session_name},
+    workspace::{Workspace, WorkspaceName},
 };
 use anyhow::{Result, anyhow};
 use std::path::{Path, PathBuf};
@@ -47,10 +53,18 @@ fn define_command() -> CommandDef {
     let ls = CommandDef::new("ls", "list all workspaces added");
     let command = command.add_subcommand(ls);
 
+    let notify = CommandDef::new(
+        "notify",
+        "mark workspace by name and move to the top of selector",
+    );
+    let command = command.add_subcommand(notify);
+
     command
 }
 
 fn handle_command() -> Result<()> {
+    init_logger()?;
+
     let command_def = define_command();
     let command = match command_def.parse(std::env::args()) {
         Err(err) => {
@@ -66,6 +80,7 @@ fn handle_command() -> Result<()> {
                 eprintln!("{}", command_def.get_help(path));
             } else {
                 eprintln!("{:#} \n{}", err, command_def.get_help(path));
+                error!("can't parse command: {:#}", err)
             }
             return Err(anyhow!(err));
         }
@@ -79,13 +94,21 @@ fn handle_command() -> Result<()> {
         ["add"] => handle_add(&command),
         ["remove"] => handle_remove(&command),
         ["ls"] => handle_ls(),
+        ["notify"] => handle_notify(&command),
         _ => Err(anyhow!("Command not found")),
     };
 
     if let Err(ref e) = cmd_result {
         eprintln!("Error: {:#}", e);
+        error!("command can't be executed: {:#}", e)
     }
 
+    Ok(())
+}
+
+fn handle_notify(command: &Command) -> Result<()> {
+    let path = get_path_from_str(&command.get_positional_string())?;
+    ns::notify(path.as_path())?;
     Ok(())
 }
 
@@ -165,17 +188,47 @@ fn handle_ws_select(cmd: &Command) -> Result<()> {
     let only_print_session_name = cmd.get_arg("print").is_some();
 
     let config = Config::load()?;
-    let workspaces = config.get_ws_all();
+
+    let mut workspaces: Vec<Workspace> = config
+        .take_ws_all()
+        .into_iter()
+        .map(Workspace::from)
+        .collect();
+
+    //TODO: move to the separate method
+    workspaces.sort_by(|a, b| {
+        let has_a = a.notification.is_some();
+        let has_b = b.notification.is_some();
+
+        let elapsed_a = a
+            .notification
+            .as_ref()
+            .map(|n| n.elapsed)
+            .unwrap_or(u64::MAX);
+
+        let elapsed_b = b
+            .notification
+            .as_ref()
+            .map(|n| n.elapsed)
+            .unwrap_or(u64::MAX);
+
+        has_b.cmp(&has_a).then_with(|| elapsed_b.cmp(&elapsed_a))
+    });
 
     let selector = Selector::Fzf(fzf::FzfSelector);
 
-    let session_path = match selector.select(workspaces)? {
-        Some(p) => p.as_ref(),
-        None => return Ok(()),
+    let Some(ws) = selector.select(&workspaces)? else {
+        return Ok(());
     };
 
+    if let Some(ns) = &ws.notification {
+        ns.remove()?;
+    }
+
+    let session_path = ws.as_ref();
+
     let sessions = SessionManager::Tmux(tmux::TmuxSessionManager);
-    let session_name = get_session_name(session_path);
+    let session_name = get_formatted_session_name(ws.get_name_or_last_path()?);
 
     if sessions.is_same_session(&session_name) {
         return Ok(());
@@ -194,11 +247,4 @@ fn handle_ws_select(cmd: &Command) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn get_session_name(path: &Path) -> String {
-    path.file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .replace(".", "_")
 }

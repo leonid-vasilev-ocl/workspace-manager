@@ -12,6 +12,7 @@ pub trait SessionManagerImpl {
     fn has_session(&self, session_name: &str) -> Result<bool>;
     fn switch_client(&self, session_name: &str) -> Result<()>;
     fn is_same_session(&self, session_name: &str) -> bool;
+    fn get_attached_session(&self) -> Option<String>;
 }
 
 impl SessionManagerImpl for SessionManager {
@@ -38,4 +39,14 @@ impl SessionManagerImpl for SessionManager {
             Self::Tmux(tmux) => tmux.is_same_session(session_name),
         }
     }
+
+    fn get_attached_session(&self) -> Option<String> {
+        match self {
+            Self::Tmux(tmux) => tmux.get_attached_session(),
+        }
+    }
+}
+
+pub fn get_formatted_session_name(name: &str) -> String {
+    name.replace(".", "_")
 }

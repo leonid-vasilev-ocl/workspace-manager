@@ -83,6 +83,15 @@ pub enum ArgType {
     Value,
 }
 
+macro_rules! define_command {
+    ($name:expr) => {
+        CommandDef::new($name, "")
+    };
+    ($name:expr, $description:expr) => {
+        CommandDef::new($name, $description)
+    };
+}
+
 #[derive(Debug)]
 pub struct ArgDef {
     short: &'static str,

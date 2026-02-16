@@ -4,21 +4,11 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use std::fs;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Workspace {
-    pub name: Option<String>,
-    pub path: PathBuf,
-}
-
-impl AsRef<Path> for Workspace {
-    fn as_ref(&self) -> &Path {
-        &self.path
-    }
-}
+use crate::workspace::WorkspaceConfig;
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
-    workspaces: Vec<Workspace>,
+    workspaces: Vec<WorkspaceConfig>,
 }
 
 fn get_path() -> Result<PathBuf> {
@@ -58,13 +48,25 @@ impl Config {
         self.workspaces.iter().any(|ws| ws.path == path)
     }
 
-    pub fn get_ws_all(&self) -> &[Workspace] {
+    pub fn take_ws(self, path: &std::path::Path) -> Option<WorkspaceConfig> {
+        self.workspaces.into_iter().find(|ws| ws.path == path)
+    }
+
+    pub fn get_ws(&self, path: &std::path::Path) -> Option<&WorkspaceConfig> {
+        self.workspaces.iter().find(|ws| ws.path == path)
+    }
+
+    pub fn get_ws_all(&self) -> &[WorkspaceConfig] {
         &self.workspaces
+    }
+
+    pub fn take_ws_all(self) -> Vec<WorkspaceConfig> {
+        self.workspaces
     }
 
     pub fn add_ws<P: AsRef<Path>>(&mut self, path: P, name: Option<String>) {
         let p = path.as_ref();
-        self.workspaces.push(Workspace {
+        self.workspaces.push(WorkspaceConfig {
             name,
             path: p.to_path_buf(),
         });

@@ -1,10 +1,15 @@
 use anyhow::{Context, Result};
 use std::{
     io::Write,
+    path::Path,
     process::{Command, Stdio},
 };
 
-use crate::{config::Workspace, selectors::SelectorImpl};
+use crate::{
+    ns::Notification,
+    selectors::SelectorImpl,
+    workspace::{Workspace, WorkspaceName},
+};
 
 pub struct FzfSelector;
 
@@ -14,50 +19,89 @@ impl SelectorImpl for FzfSelector {
     }
 }
 
-pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Workspace>> {
+fn style_text(text: &str, bold: bool, color_code: Option<u8>) -> String {
+    let mut parts: Vec<String> = Vec::new();
+
+    if bold {
+        parts.push("1".to_string())
+    }
+
+    if let Some(color) = color_code {
+        parts.push(color.to_string())
+    }
+
+    if parts.is_empty() {
+        text.to_string()
+    } else {
+        format!("\x1b[{}m{}\x1b[0m", parts.join(";"), text)
+    }
+}
+
+fn get_name_path(wss: &[Workspace]) -> Result<Vec<(&str, &Path)>> {
+    let mut res: Vec<(&str, &Path)> = Vec::new();
+
+    for ws in wss {
+        let name = ws.get_name_or_last_path()?;
+        res.push((name, ws.path.as_ref()))
+    }
+
+    Ok(res)
+}
+
+fn get_select_display_item(
+    i: usize,
+    name: &str,
+    path: &Path,
+    notification: Option<&Notification>,
+    max_name_len: usize,
+) -> Result<String> {
+    let static_padding = 8;
+    let left_padding = max_name_len + static_padding;
+    let st = format!(
+        "{}\t{:width$} {}",
+        i,
+        name,
+        path.to_string_lossy(),
+        width = left_padding
+    );
+    if notification.is_some() {
+        Ok(style_text(&st, true, Some(33)))
+    } else {
+        Ok(st)
+    }
+}
+
+fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Workspace>> {
     let mut child = Command::new("fzf")
+        .arg("--ansi")
+        .arg("--delimiter=\t")
+        .arg("--with-nth=2..")
         .arg("--layout=reverse") // Puts the input at the top
-        .arg("--preview")
-        .arg(
-            "sh -c '
-    sess=$(basename {2..}); 
-    if tmux has-session -t \"$sess\" 2>/dev/null; then
-        tmux list-windows -t \"$sess\" -F \"#I:#W\" | while read -r line; do
-            index=$(echo $line | cut -d: -f1);
-            name=$(echo $line | cut -d: -f2);
-            printf \"\\033[32m── Window $index: $name ──\\033[0m\\n\";
-            tmux capture-pane -pt \"$sess:$index\" -eS -5 -E 10 | sed \"s/^/  /\";
-            echo \"\";
-        done;
-    else
-        printf \"\\033[33m--- Session Not Active ---\\033[0m\\n\";
-        ls -p --color=always {2..};
-    fi
-'",
-        )
-        .arg("--preview-window")
-        .arg("hidden")
-        .arg("--bind")
-        .arg("ctrl-t:toggle-preview")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
 
-    let input = workspaces
+    let name_path = get_name_path(&workspaces)?;
+    let mut name_max_len: usize = 0;
+
+    for (name, _) in &name_path {
+        let len = name.len();
+        if len > name_max_len {
+            name_max_len = len;
+        }
+    }
+
+    let input = &name_path
         .iter()
         .enumerate()
-        .map(|(i, ws)| {
-            let name = match &ws.name {
-                Some(n) => n,
-                None => ws
-                    .path
-                    .file_name()
-                    .and_then(|os| os.to_str())
-                    .with_context(|| {
-                        format!("can not get name for path: {}", ws.path.to_string_lossy())
-                    })?,
-            };
-            Ok(format!("{} {} {}", i, name, ws.path.to_string_lossy()))
+        .map(|(i, (name, path))| {
+            get_select_display_item(
+                i,
+                name,
+                path,
+                workspaces[i].notification.as_ref(),
+                name_max_len,
+            )
         })
         .collect::<Result<Vec<String>>>()?
         .join("\n");
@@ -73,7 +117,7 @@ pub fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Work
 
     let workspace = String::from_utf8_lossy(&output.stdout)
         .trim()
-        .split_once(" ")
+        .split_once("\t")
         .and_then(|(first, _)| first.parse::<usize>().ok())
         .and_then(|index| workspaces.get(index));
 
