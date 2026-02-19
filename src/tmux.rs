@@ -5,7 +5,7 @@ use std::{
 
 use crate::sessions::SessionManagerImpl;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 
 pub struct TmuxSessionManager;
 
@@ -77,6 +77,20 @@ impl SessionManagerImpl for TmuxSessionManager {
         }
 
         None
+    }
+
+    fn list_active_sessions(&self) -> Result<Vec<String>> {
+        let output = Command::new("tmux").arg("list-sessions").output()?;
+
+        let stdout = String::from_utf8(output.stdout)?;
+
+        let active_sessions = stdout
+            .lines()
+            .map(|s| s.split_once(":").map(|(first, _)| first.to_string()))
+            .collect::<Option<Vec<_>>>()
+            .ok_or(anyhow!("Invalid tmux session name, missing (:)"))?;
+
+        Ok(active_sessions)
     }
 }
 

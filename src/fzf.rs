@@ -52,18 +52,26 @@ fn get_select_display_item(
     i: usize,
     name: &str,
     path: &Path,
+    is_open: bool,
     notification: Option<&Notification>,
     max_name_len: usize,
 ) -> Result<String> {
-    let static_padding = 8;
-    let left_padding = max_name_len + static_padding;
+    let path = path.to_string_lossy();
+
+    let right_text = if is_open {
+        format!("{}  {}", style_text("Open", true, Some(32)), path,)
+    } else {
+        format!("{:width$}  {}", "", path, width = 4)
+    };
+
     let st = format!(
         "{}\t{:width$} {}",
         i,
         name,
-        path.to_string_lossy(),
-        width = left_padding
+        right_text,
+        width = max_name_len + 10
     );
+
     if notification.is_some() {
         Ok(style_text(&st, true, Some(33)))
     } else {
@@ -99,6 +107,7 @@ fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Workspac
                 i,
                 name,
                 path,
+                workspaces[i].is_open,
                 workspaces[i].notification.as_ref(),
                 name_max_len,
             )

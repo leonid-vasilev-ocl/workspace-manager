@@ -8,6 +8,7 @@ pub enum SessionManager {
 }
 
 pub trait SessionManagerImpl {
+    fn list_active_sessions(&self) -> Result<Vec<String>>;
     fn new_session(&self, session_name: &str, session_path: &Path) -> Result<ExitStatus>;
     fn has_session(&self, session_name: &str) -> Result<bool>;
     fn switch_client(&self, session_name: &str) -> Result<()>;
@@ -43,6 +44,12 @@ impl SessionManagerImpl for SessionManager {
     fn get_attached_session(&self) -> Option<String> {
         match self {
             Self::Tmux(tmux) => tmux.get_attached_session(),
+        }
+    }
+
+    fn list_active_sessions(&self) -> Result<Vec<String>> {
+        match self {
+            Self::Tmux(tmux) => tmux.list_active_sessions(),
         }
     }
 }

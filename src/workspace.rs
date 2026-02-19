@@ -16,6 +16,7 @@ pub struct Workspace {
     pub name: Option<String>,
     pub path: PathBuf,
     pub notification: Option<Notification>,
+    pub is_open: bool,
 }
 
 impl From<WorkspaceConfig> for Workspace {
@@ -25,6 +26,7 @@ impl From<WorkspaceConfig> for Workspace {
             name: config.name,
             path: config.path,
             notification,
+            is_open: false,
         }
     }
 }

@@ -19,7 +19,7 @@ use crate::{
     workspace::{Workspace, WorkspaceName},
 };
 use anyhow::{Result, anyhow};
-use std::path::{Path, PathBuf};
+use std::{collections::HashSet, path::PathBuf};
 
 fn define_command() -> CommandDef {
     let command = CommandDef::new(
@@ -98,9 +98,10 @@ fn handle_command() -> Result<()> {
         _ => Err(anyhow!("Command not found")),
     };
 
-    if let Err(ref e) = cmd_result {
+    if let Err(e) = cmd_result {
         eprintln!("Error: {:#}", e);
-        error!("command can't be executed: {:#}", e)
+        error!("command can't be executed: {:#}", e);
+        return Err(e);
     }
 
     Ok(())
@@ -195,6 +196,14 @@ fn handle_ws_select(cmd: &Command) -> Result<()> {
         .map(Workspace::from)
         .collect();
 
+    let sessions = SessionManager::Tmux(tmux::TmuxSessionManager);
+    let active_sessions_names: HashSet<String> =
+        sessions.list_active_sessions()?.into_iter().collect();
+    for ws in workspaces.iter_mut() {
+        let ws_name = ws.get_name_or_last_path()?;
+        ws.is_open = active_sessions_names.contains(ws_name);
+    }
+
     //TODO: move to the separate method
     workspaces.sort_by(|a, b| {
         let has_a = a.notification.is_some();
@@ -212,7 +221,13 @@ fn handle_ws_select(cmd: &Command) -> Result<()> {
             .map(|n| n.elapsed)
             .unwrap_or(u64::MAX);
 
-        has_b.cmp(&has_a).then_with(|| elapsed_b.cmp(&elapsed_a))
+        let open_a = a.is_open;
+        let open_b = b.is_open;
+
+        has_b
+            .cmp(&has_a)
+            .then_with(|| elapsed_b.cmp(&elapsed_a))
+            .then_with(|| open_b.cmp(&open_a))
     });
 
     let selector = Selector::Fzf(fzf::FzfSelector);
@@ -227,7 +242,6 @@ fn handle_ws_select(cmd: &Command) -> Result<()> {
 
     let session_path = ws.as_ref();
 
-    let sessions = SessionManager::Tmux(tmux::TmuxSessionManager);
     let session_name = get_formatted_session_name(ws.get_name_or_last_path()?);
 
     if sessions.is_same_session(&session_name) {
