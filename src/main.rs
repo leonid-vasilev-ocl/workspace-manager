@@ -3,6 +3,7 @@ mod commands;
 #[macro_use]
 mod log;
 mod config;
+mod format;
 mod fzf;
 mod ns;
 mod selectors;
@@ -16,7 +17,9 @@ use crate::{
     log::init_logger,
     selectors::Selector,
     sessions::{SessionManager, SessionManagerImpl, get_formatted_session_name},
-    workspace::{Workspace, WorkspaceName},
+    workspace::{
+        Workspace, WorkspaceName, WorkspacesBuilder, order_by_notification, order_by_open_session,
+    },
 };
 use anyhow::{Result, anyhow};
 use std::{collections::HashSet, path::PathBuf};
@@ -189,46 +192,15 @@ fn handle_ws_select(cmd: &Command) -> Result<()> {
     let only_print_session_name = cmd.get_arg("print").is_some();
 
     let config = Config::load()?;
-
-    let mut workspaces: Vec<Workspace> = config
-        .take_ws_all()
-        .into_iter()
-        .map(Workspace::from)
-        .collect();
-
     let sessions = SessionManager::Tmux(tmux::TmuxSessionManager);
-    let active_sessions_names: HashSet<String> =
-        sessions.list_active_sessions()?.into_iter().collect();
-    for ws in workspaces.iter_mut() {
-        let ws_name = ws.get_name_or_last_path()?;
-        ws.is_open = active_sessions_names.contains(ws_name);
-    }
 
-    //TODO: move to the separate method
-    workspaces.sort_by(|a, b| {
-        let has_a = a.notification.is_some();
-        let has_b = b.notification.is_some();
+    let mut workspaces = WorkspacesBuilder::new(&config)
+        .get_open_sessions(&sessions)
+        .collect_notifications()
+        .build()?;
 
-        let elapsed_a = a
-            .notification
-            .as_ref()
-            .map(|n| n.elapsed)
-            .unwrap_or(u64::MAX);
-
-        let elapsed_b = b
-            .notification
-            .as_ref()
-            .map(|n| n.elapsed)
-            .unwrap_or(u64::MAX);
-
-        let open_a = a.is_open;
-        let open_b = b.is_open;
-
-        has_b
-            .cmp(&has_a)
-            .then_with(|| elapsed_b.cmp(&elapsed_a))
-            .then_with(|| open_b.cmp(&open_a))
-    });
+    workspaces
+        .sort_by(|a, b| order_by_notification(a, b).then_with(|| order_by_open_session(a, b)));
 
     let selector = Selector::Fzf(fzf::FzfSelector);
 

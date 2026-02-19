@@ -1,81 +1,16 @@
 use anyhow::{Context, Result};
 use std::{
     io::Write,
-    path::Path,
     process::{Command, Stdio},
 };
 
-use crate::{
-    ns::Notification,
-    selectors::SelectorImpl,
-    workspace::{Workspace, WorkspaceName},
-};
+use crate::{format::get_workspace_display_items, selectors::SelectorImpl, workspace::Workspace};
 
 pub struct FzfSelector;
 
 impl SelectorImpl for FzfSelector {
     fn select<'a>(&self, workspaces: &'a [Workspace]) -> Result<Option<&'a Workspace>> {
         Ok(call_fzf_with_workspaces(workspaces)?)
-    }
-}
-
-fn style_text(text: &str, bold: bool, color_code: Option<u8>) -> String {
-    let mut parts: Vec<String> = Vec::new();
-
-    if bold {
-        parts.push("1".to_string())
-    }
-
-    if let Some(color) = color_code {
-        parts.push(color.to_string())
-    }
-
-    if parts.is_empty() {
-        text.to_string()
-    } else {
-        format!("\x1b[{}m{}\x1b[0m", parts.join(";"), text)
-    }
-}
-
-fn get_name_path(wss: &[Workspace]) -> Result<Vec<(&str, &Path)>> {
-    let mut res: Vec<(&str, &Path)> = Vec::new();
-
-    for ws in wss {
-        let name = ws.get_name_or_last_path()?;
-        res.push((name, ws.path.as_ref()))
-    }
-
-    Ok(res)
-}
-
-fn get_select_display_item(
-    i: usize,
-    name: &str,
-    path: &Path,
-    is_open: bool,
-    notification: Option<&Notification>,
-    max_name_len: usize,
-) -> Result<String> {
-    let path = path.to_string_lossy();
-
-    let right_text = if is_open {
-        format!("{}  {}", style_text("Open", true, Some(32)), path,)
-    } else {
-        format!("{:width$}  {}", "", path, width = 4)
-    };
-
-    let st = format!(
-        "{}\t{:width$} {}",
-        i,
-        name,
-        right_text,
-        width = max_name_len + 10
-    );
-
-    if notification.is_some() {
-        Ok(style_text(&st, true, Some(33)))
-    } else {
-        Ok(st)
     }
 }
 
@@ -89,31 +24,7 @@ fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Workspac
         .stdout(Stdio::piped())
         .spawn()?;
 
-    let name_path = get_name_path(&workspaces)?;
-    let mut name_max_len: usize = 0;
-
-    for (name, _) in &name_path {
-        let len = name.len();
-        if len > name_max_len {
-            name_max_len = len;
-        }
-    }
-
-    let input = &name_path
-        .iter()
-        .enumerate()
-        .map(|(i, (name, path))| {
-            get_select_display_item(
-                i,
-                name,
-                path,
-                workspaces[i].is_open,
-                workspaces[i].notification.as_ref(),
-                name_max_len,
-            )
-        })
-        .collect::<Result<Vec<String>>>()?
-        .join("\n");
+    let input = get_workspace_display_items(workspaces)?.join("\n");
 
     {
         let mut stdin = child.stdin.take().context("Failed to open fzf stdin")?;
