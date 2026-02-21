@@ -14,6 +14,7 @@ pub trait SessionManagerImpl {
     fn switch_client(&self, session_name: &str) -> Result<()>;
     fn is_same_session(&self, session_name: &str) -> bool;
     fn get_attached_session(&self) -> Option<String>;
+    fn kill_session(&self, session_name: &str) -> Result<()>;
 }
 
 impl SessionManagerImpl for SessionManager {
@@ -50,6 +51,12 @@ impl SessionManagerImpl for SessionManager {
     fn list_active_sessions(&self) -> Result<Vec<String>> {
         match self {
             Self::Tmux(tmux) => tmux.list_active_sessions(),
+        }
+    }
+
+    fn kill_session(&self, session_name: &str) -> Result<()> {
+        match self {
+            Self::Tmux(tmux) => tmux.kill_session(session_name),
         }
     }
 }

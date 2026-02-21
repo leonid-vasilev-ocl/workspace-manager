@@ -92,6 +92,15 @@ impl SessionManagerImpl for TmuxSessionManager {
 
         Ok(active_sessions)
     }
+
+    fn kill_session(&self, session_name: &str) -> Result<()> {
+        Command::new("tmux")
+            .arg("kill-session")
+            .arg("-t")
+            .arg(format!("={}", &session_name))
+            .status()?;
+        Ok(())
+    }
 }
 
 fn is_in_tmux() -> bool {

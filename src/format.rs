@@ -6,6 +6,7 @@ use crate::{
 };
 use anyhow::Result;
 
+//TODO: make this configurable via config and builder
 pub fn get_workspace_display_items(wss: &[Workspace]) -> Result<Vec<String>> {
     let name_path = get_name_path(wss)?;
 
@@ -63,7 +64,7 @@ fn get_select_display_item(
     };
 
     let st = format!(
-        "{}\t{:width$} {}",
+        "{}\t{:width$}\t{}",
         i,
         name,
         right_text,

@@ -26,18 +26,18 @@ use std::path::PathBuf;
 fn define_command() -> CommandDef {
     let command = CommandDef::new(
         "wsm",
-        "Command line workspace multiplexer, add workspaces to list and swtitch between them using fzf and tmux",
+        "Command line workspace multiplexer, add workspaces to list and switch between them",
     );
 
     let select = CommandDef::new(
         "select",
-        "Select a workspace in fzf and switch to tmux session(create + switch)",
+        "Select a workspace and switch to tmux session(create + switch)",
     )
     .add_arg(
         "p",
         "print",
         ArgType::Flag,
-        "creates tmux workspace and prints name instead of switching",
+        "creates workspace and prints name instead of switching",
     );
     let command = command.add_subcommand(select);
 
@@ -60,6 +60,9 @@ fn define_command() -> CommandDef {
         "mark workspace by name and move to the top of selector",
     );
     let command = command.add_subcommand(notify);
+
+    let kill = CommandDef::new("kill", "kill session by workspace name");
+    let command = command.add_subcommand(kill);
 
     command
 }
@@ -97,6 +100,7 @@ fn handle_command() -> Result<()> {
         ["remove"] => handle_remove(&command),
         ["ls"] => handle_ls(),
         ["notify"] => handle_notify(&command),
+        ["kill"] => handle_kill(&command),
         _ => Err(anyhow!("Command not found")),
     };
 
@@ -105,6 +109,19 @@ fn handle_command() -> Result<()> {
         error!("command can't be executed: {:#}", e);
         return Err(e);
     }
+
+    Ok(())
+}
+
+fn handle_kill(command: &Command) -> Result<()> {
+    let positional = command.get_positional_string();
+    if positional.is_empty() {
+        return Err(anyhow!("No session by workspace name"));
+    }
+
+    let session_manager = SessionManager::Tmux(tmux::TmuxSessionManager);
+    let session_name = get_formatted_session_name(&positional);
+    session_manager.kill_session(&session_name)?;
 
     Ok(())
 }

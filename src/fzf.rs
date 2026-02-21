@@ -14,8 +14,14 @@ impl SelectorImpl for FzfSelector {
     }
 }
 
+// NOTE: using "wsm" as a command name may be a problem as it is a hard-coded command name and may
+// differ from the actual command name
 fn add_reload_command(command: &mut Command) {
     command.arg("--bind=ctrl-r:reload(wsm ls)");
+}
+
+fn add_kill_session_command(command: &mut Command) {
+    command.arg("--bind=ctrl-x:execute-silent(wsm kill {2})+reload-sync(wsm ls)");
 }
 
 fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Workspace>> {
@@ -30,6 +36,7 @@ fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Workspac
         .stdout(Stdio::piped());
 
     add_reload_command(&mut command);
+    add_kill_session_command(&mut command);
 
     let mut child = command.spawn()?;
 
