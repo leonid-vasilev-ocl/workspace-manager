@@ -45,9 +45,21 @@ fn get_select_display_item(
     let path = path.to_string_lossy();
 
     let right_text = if is_open {
-        format!("{}  {}", style_text("Open", true, Some(32)), path,)
+        let open_label = format!("{:width$}", "\u{ebc8}", width = 4);
+        format!("{}{}", style_text(&open_label, true, Some(32)), path,)
     } else {
-        format!("{:width$}  {}", "", path, width = 4)
+        format!("{:width$}{}", "", path, width = 4)
+    };
+
+    let right_text = if notification.is_some() {
+        let notification_label = format!("{:width$}", "\u{f06a}", width = 3);
+        format!(
+            "{}{}",
+            style_text(&notification_label, true, Some(33)),
+            right_text,
+        )
+    } else {
+        format!("{:width$}{}", "", right_text, width = 3)
     };
 
     let st = format!(

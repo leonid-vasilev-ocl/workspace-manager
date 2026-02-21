@@ -14,15 +14,14 @@ mod workspace;
 use crate::{
     commands::{ArgType, Command, CommandDef, ParseError},
     config::Config,
+    format::get_workspace_display_items,
     log::init_logger,
     selectors::Selector,
     sessions::{SessionManager, SessionManagerImpl, get_formatted_session_name},
-    workspace::{
-        Workspace, WorkspaceName, WorkspacesBuilder, order_by_notification, order_by_open_session,
-    },
+    workspace::{WorkspaceName, WorkspacesBuilder, order_by_notification, order_by_open_session},
 };
 use anyhow::{Result, anyhow};
-use std::{collections::HashSet, path::PathBuf};
+use std::path::PathBuf;
 
 fn define_command() -> CommandDef {
     let command = CommandDef::new(
@@ -165,9 +164,19 @@ fn handle_add(cmd: &Command) -> Result<()> {
 
 fn handle_ls() -> Result<()> {
     let config = Config::load()?;
-    let workspaces = config.get_ws_all();
-    for ws in workspaces {
-        println!("{}", ws.path.display())
+    let session_manager = SessionManager::Tmux(tmux::TmuxSessionManager);
+
+    let mut workspaces = WorkspacesBuilder::new(&config)
+        .get_open_sessions(&session_manager)
+        .collect_notifications()
+        .build()?;
+
+    workspaces
+        .sort_by(|a, b| order_by_notification(a, b).then_with(|| order_by_open_session(a, b)));
+
+    let display_items = get_workspace_display_items(&workspaces)?;
+    for item in display_items {
+        println!("{}", item)
     }
     Ok(())
 }

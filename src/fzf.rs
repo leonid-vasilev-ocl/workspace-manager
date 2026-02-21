@@ -14,15 +14,24 @@ impl SelectorImpl for FzfSelector {
     }
 }
 
+fn add_reload_command(command: &mut Command) {
+    command.arg("--bind=ctrl-r:reload(wsm ls)");
+}
+
 fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Workspace>> {
-    let mut child = Command::new("fzf")
+    let mut command = Command::new("fzf");
+
+    command
         .arg("--ansi")
         .arg("--delimiter=\t")
         .arg("--with-nth=2..")
         .arg("--layout=reverse") // Puts the input at the top
         .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()?;
+        .stdout(Stdio::piped());
+
+    add_reload_command(&mut command);
+
+    let mut child = command.spawn()?;
 
     let input = get_workspace_display_items(workspaces)?.join("\n");
 
