@@ -39,18 +39,24 @@ impl SessionManagerImpl for TmuxSessionManager {
         Ok(())
     }
 
-    fn is_same_session(&self, session_name: &str) -> bool {
+    fn get_current_session(&self) -> Option<String> {
         if !is_in_tmux() {
-            return false;
+            return None;
         }
 
-        let current_session = Command::new("tmux")
+        let output = Command::new("tmux")
             .arg("display-message")
             .arg("-p")
             .arg("#S")
             .output()
             .ok()
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+
+        output
+    }
+
+    fn is_same_session(&self, session_name: &str) -> bool {
+        let current_session = self.get_current_session();
 
         Some(session_name) == current_session.as_deref()
     }

@@ -7,13 +7,21 @@ pub enum Selector {
 }
 
 pub trait SelectorImpl {
-    fn select<'a>(&self, workspaces: &'a [Workspace]) -> Result<Option<&'a Workspace>>;
+    fn select<'a>(
+        &self,
+        workspaces: &'a [Workspace],
+        current_session: Option<&'a str>,
+    ) -> Result<Option<&'a Workspace>>;
 }
 
 impl Selector {
-    pub fn select<'a>(&self, workspaces: &'a [Workspace]) -> Result<Option<&'a Workspace>> {
+    pub fn select<'a>(
+        &self,
+        workspaces: &'a [Workspace],
+        current_session: Option<&'a str>,
+    ) -> Result<Option<&'a Workspace>> {
         match self {
-            Selector::Fzf(sel) => sel.select(workspaces),
+            Selector::Fzf(sel) => sel.select(workspaces, current_session),
         }
     }
 }

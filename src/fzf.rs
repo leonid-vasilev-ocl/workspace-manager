@@ -9,22 +9,29 @@ use crate::{format::get_workspace_display_items, selectors::SelectorImpl, worksp
 pub struct FzfSelector;
 
 impl SelectorImpl for FzfSelector {
-    fn select<'a>(&self, workspaces: &'a [Workspace]) -> Result<Option<&'a Workspace>> {
-        Ok(call_fzf_with_workspaces(workspaces)?)
+    fn select<'a>(
+        &self,
+        workspaces: &'a [Workspace],
+        current_session: Option<&'a str>,
+    ) -> Result<Option<&'a Workspace>> {
+        Ok(call_fzf_with_workspaces(workspaces, current_session)?)
     }
 }
 
 // NOTE: using "wsm" as a command name may be a problem as it is a hard-coded command name and may
 // differ from the actual command name
 fn add_reload_command(command: &mut Command) {
-    command.arg("--bind=ctrl-r:reload(wsm ls)");
+    command.arg("--bind=ctrl-r:reload(wsm ls -o -n)");
 }
 
 fn add_kill_session_command(command: &mut Command) {
-    command.arg("--bind=ctrl-x:execute-silent(wsm kill {2})+reload-sync(wsm ls)");
+    command.arg("--bind=ctrl-x:execute-silent(wsm kill {2})+reload-sync(wsm ls -o -n)");
 }
 
-fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Workspace>> {
+fn call_fzf_with_workspaces<'a>(
+    workspaces: &'a [Workspace],
+    current_session: Option<&'a str>,
+) -> Result<Option<&'a Workspace>> {
     let mut command = Command::new("fzf");
 
     command
@@ -40,7 +47,7 @@ fn call_fzf_with_workspaces(workspaces: &[Workspace]) -> Result<Option<&Workspac
 
     let mut child = command.spawn()?;
 
-    let input = get_workspace_display_items(workspaces)?.join("\n");
+    let input = get_workspace_display_items(workspaces, current_session)?.join("\n");
 
     {
         let mut stdin = child.stdin.take().context("Failed to open fzf stdin")?;

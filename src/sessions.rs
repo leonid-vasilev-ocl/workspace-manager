@@ -15,6 +15,7 @@ pub trait SessionManagerImpl {
     fn is_same_session(&self, session_name: &str) -> bool;
     fn get_attached_session(&self) -> Option<String>;
     fn kill_session(&self, session_name: &str) -> Result<()>;
+    fn get_current_session(&self) -> Option<String>;
 }
 
 impl SessionManagerImpl for SessionManager {
@@ -57,6 +58,11 @@ impl SessionManagerImpl for SessionManager {
     fn kill_session(&self, session_name: &str) -> Result<()> {
         match self {
             Self::Tmux(tmux) => tmux.kill_session(session_name),
+        }
+    }
+    fn get_current_session(&self) -> Option<String> {
+        match self {
+            Self::Tmux(tmux) => tmux.get_current_session(),
         }
     }
 }

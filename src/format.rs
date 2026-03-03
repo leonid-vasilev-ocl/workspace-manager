@@ -7,7 +7,10 @@ use crate::{
 use anyhow::Result;
 
 //TODO: make this configurable via config and builder
-pub fn get_workspace_display_items(wss: &[Workspace]) -> Result<Vec<String>> {
+pub fn get_workspace_display_items(
+    wss: &[Workspace],
+    current_session: Option<&str>,
+) -> Result<Vec<String>> {
     let name_path = get_name_path(wss)?;
 
     let mut name_max_len: usize = 0;
@@ -28,6 +31,7 @@ pub fn get_workspace_display_items(wss: &[Workspace]) -> Result<Vec<String>> {
                 name,
                 path,
                 wss[i].is_open,
+                current_session,
                 wss[i].notification.as_ref(),
                 name_max_len,
             )
@@ -40,6 +44,7 @@ fn get_select_display_item(
     name: &str,
     path: &Path,
     is_open: bool,
+    current_session: Option<&str>,
     notification: Option<&Notification>,
     max_name_len: usize,
 ) -> Result<String> {
@@ -47,7 +52,14 @@ fn get_select_display_item(
 
     let right_text = if is_open {
         let open_label = format!("{:width$}", "\u{ebc8}", width = 4);
-        format!("{}{}", style_text(&open_label, true, Some(32)), path,)
+
+        let color = match current_session {
+            Some(session) if session == name => Some(33),
+            Some(_) => Some(32),
+            None => Some(32),
+        };
+
+        format!("{}{}", style_text(&open_label, true, color), path)
     } else {
         format!("{:width$}{}", "", path, width = 4)
     };

@@ -52,7 +52,19 @@ fn define_command() -> CommandDef {
     let remove = CommandDef::new("remove", "remove workspace from fzf");
     let command = command.add_subcommand(remove);
 
-    let ls = CommandDef::new("ls", "list all workspaces added");
+    let ls = CommandDef::new("ls", "list all workspaces added")
+        .add_arg(
+            "n",
+            "notifications",
+            ArgType::Flag,
+            "toggle showing notifications",
+        )
+        .add_arg(
+            "o",
+            "open",
+            ArgType::Flag,
+            "toggle showing what workspace is open",
+        );
     let command = command.add_subcommand(ls);
 
     let notify = CommandDef::new(
@@ -98,7 +110,7 @@ fn handle_command() -> Result<()> {
         ["select"] => handle_ws_select(&command),
         ["add"] => handle_add(&command),
         ["remove"] => handle_remove(&command),
-        ["ls"] => handle_ls(),
+        ["ls"] => handle_ls(&command),
         ["notify"] => handle_notify(&command),
         ["kill"] => handle_kill(&command),
         _ => Err(anyhow!("Command not found")),
@@ -179,19 +191,32 @@ fn handle_add(cmd: &Command) -> Result<()> {
     Ok(())
 }
 
-fn handle_ls() -> Result<()> {
+fn handle_ls(command: &Command) -> Result<()> {
     let config = Config::load()?;
     let session_manager = SessionManager::Tmux(tmux::TmuxSessionManager);
 
-    let mut workspaces = WorkspacesBuilder::new(&config)
-        .get_open_sessions(&session_manager)
-        .collect_notifications()
-        .build()?;
+    let show_notifications = command.get_arg("notifications").is_some();
+    let show_open = command.get_arg("open").is_some();
+
+    let mut builder = WorkspacesBuilder::new(&config);
+
+    let mut current_session = None;
+
+    if show_open {
+        builder = builder.get_open_sessions(&session_manager);
+        current_session = session_manager.get_current_session();
+    }
+
+    if show_notifications {
+        builder = builder.collect_notifications();
+    }
+
+    let mut workspaces = builder.build()?;
 
     workspaces
         .sort_by(|a, b| order_by_notification(a, b).then_with(|| order_by_open_session(a, b)));
 
-    let display_items = get_workspace_display_items(&workspaces)?;
+    let display_items = get_workspace_display_items(&workspaces, current_session.as_deref())?;
     for item in display_items {
         println!("{}", item)
     }
@@ -230,7 +255,9 @@ fn handle_ws_select(cmd: &Command) -> Result<()> {
 
     let selector = Selector::Fzf(fzf::FzfSelector);
 
-    let Some(ws) = selector.select(&workspaces)? else {
+    let current_session = sessions.get_current_session();
+
+    let Some(ws) = selector.select(&workspaces, current_session.as_deref())? else {
         return Ok(());
     };
 

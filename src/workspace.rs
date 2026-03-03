@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     config::Config,
     ns::{Notification, get_notification},
-    sessions::{SessionManager, SessionManagerImpl},
+    sessions::{SessionManager, SessionManagerImpl, get_formatted_session_name},
 };
 
 pub struct WorkspacesBuilder<'a> {
@@ -63,7 +63,8 @@ impl<'a> WorkspacesBuilder<'a> {
                 sessions.list_active_sessions()?.into_iter().collect();
             for ws in workspaces.iter_mut() {
                 let ws_name = ws.get_name_or_last_path()?;
-                ws.is_open = active_sessions_names.contains(ws_name);
+                let ws_name = get_formatted_session_name(ws_name);
+                ws.is_open = active_sessions_names.contains(&ws_name);
             }
         }
 
