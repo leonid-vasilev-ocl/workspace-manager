@@ -66,10 +66,11 @@ impl Config {
 
     pub fn add_ws<P: AsRef<Path>>(&mut self, path: P, name: Option<String>) {
         let p = path.as_ref();
-        self.workspaces.push(WorkspaceConfig {
+        let ws = WorkspaceConfig {
             name,
             path: p.to_path_buf(),
-        });
+        };
+        self.workspaces.push(ws);
     }
 
     pub fn remove_ws(&mut self, path: &std::path::Path) -> bool {

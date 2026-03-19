@@ -41,12 +41,14 @@ fn define_command() -> CommandDef {
     );
     let command = command.add_subcommand(select);
 
-    let add = CommandDef::new("add", "Add a workspace to fzf").add_arg(
-        "n",
-        "name",
-        ArgType::Value,
-        "Set specific custom name for the workspace",
-    );
+    let add = CommandDef::new("add", "Add a workspace to fzf")
+        .add_arg(
+            "n",
+            "name",
+            ArgType::Value,
+            "Set specific custom name for the workspace",
+        )
+        .add_arg("o", "open", ArgType::Flag, "open workspace after adding");
     let command = command.add_subcommand(add);
 
     let remove = CommandDef::new("remove", "remove workspace from fzf");
@@ -170,6 +172,7 @@ fn handle_add(cmd: &Command) -> Result<()> {
     let path = get_path_from_str(&positional)?;
 
     let name = cmd.get_arg_value("name");
+    let open = cmd.get_arg("open").is_some();
 
     let mut config = Config::load()?;
 
@@ -188,6 +191,20 @@ fn handle_add(cmd: &Command) -> Result<()> {
             None => String::from(""),
         }
     );
+
+    if open {
+        let Some(name) = name.or_else(|| path.file_name().and_then(|os| os.to_str())) else {
+            return Err(anyhow!(
+                "can't get name from path: {}",
+                path.to_string_lossy()
+            ));
+        };
+
+        let session_manager = SessionManager::Tmux(tmux::TmuxSessionManager);
+        let session_name = get_formatted_session_name(name);
+        session_manager.new_session(&session_name, &path)?;
+        session_manager.switch_client(&session_name)?;
+    }
     Ok(())
 }
 
