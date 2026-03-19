@@ -39,6 +39,7 @@ fn call_fzf_with_workspaces<'a>(
         .arg("--delimiter=\t")
         .arg("--with-nth=2..")
         .arg("--layout=reverse") // Puts the input at the top
+        .arg("--bind=space:jump,jump:accept")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped());
 
