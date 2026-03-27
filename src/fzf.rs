@@ -1,10 +1,14 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::{
     io::Write,
     process::{Command, Stdio},
 };
 
-use crate::{format::get_workspace_display_items, selectors::SelectorImpl, workspace::Workspace};
+use crate::{
+    format::get_workspace_display_items,
+    selectors::SelectorImpl,
+    workspace::{Workspace, WorkspaceName},
+};
 
 pub struct FzfSelector;
 
@@ -61,9 +65,17 @@ fn call_fzf_with_workspaces<'a>(
 
     let workspace = String::from_utf8_lossy(&output.stdout)
         .trim()
-        .split_once("\t")
-        .and_then(|(first, _)| first.parse::<usize>().ok())
-        .and_then(|index| workspaces.get(index));
+        .split("\t")
+        .nth(1)
+        .map(|s| s.trim())
+        .and_then(|s| {
+            workspaces.iter().find(|w| match w.get_name_or_last_path() {
+                Ok(name) => name == s,
+                Err(_) => false,
+            })
+        });
+
+    println!("{:?}", workspace);
 
     Ok(workspace)
 }
