@@ -48,20 +48,12 @@ impl Config {
         self.workspaces.iter().any(|ws| ws.path == path)
     }
 
-    pub fn take_ws(self, path: &std::path::Path) -> Option<WorkspaceConfig> {
-        self.workspaces.into_iter().find(|ws| ws.path == path)
-    }
-
     pub fn get_ws(&self, path: &std::path::Path) -> Option<&WorkspaceConfig> {
         self.workspaces.iter().find(|ws| ws.path == path)
     }
 
     pub fn get_ws_all(&self) -> &[WorkspaceConfig] {
         &self.workspaces
-    }
-
-    pub fn take_ws_all(self) -> Vec<WorkspaceConfig> {
-        self.workspaces
     }
 
     pub fn add_ws<P: AsRef<Path>>(&mut self, path: P, name: Option<String>) {
