@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use std::{
     io::Write,
     process::{Command, Stdio},
@@ -22,14 +22,28 @@ impl SelectorImpl for FzfSelector {
     }
 }
 
-// NOTE: using "wsm" as a command name may be a problem as it is a hard-coded command name and may
-// differ from the actual command name
 fn add_reload_command(command: &mut Command) {
     command.arg("--bind=ctrl-r:reload(wsm ls -o -n)");
 }
 
 fn add_kill_session_command(command: &mut Command) {
     command.arg("--bind=ctrl-x:execute-silent(wsm kill {2})+reload-sync(wsm ls -o -n)");
+}
+
+trait FzfCommand {
+    fn add_help(&mut self) -> &mut Self;
+}
+
+impl FzfCommand for Command {
+    fn add_help(&mut self) -> &mut Self {
+        self.arg("--footer")
+            .arg(
+                "enter: select | ctrl-r: reload | ctrl-x: kill session | space: jump | esc: cancel",
+            )
+            .arg("--footer-border");
+
+        self
+    }
 }
 
 fn call_fzf_with_workspaces<'a>(
@@ -44,6 +58,7 @@ fn call_fzf_with_workspaces<'a>(
         .arg("--with-nth=2..")
         .arg("--layout=reverse") // Puts the input at the top
         .arg("--bind=space:jump,jump:accept")
+        .add_help()
         .stdin(Stdio::piped())
         .stdout(Stdio::piped());
 
@@ -74,8 +89,6 @@ fn call_fzf_with_workspaces<'a>(
                 Err(_) => false,
             })
         });
-
-    println!("{:?}", workspace);
 
     Ok(workspace)
 }
