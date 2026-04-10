@@ -46,7 +46,7 @@ impl FzfCommand for Command {
     fn add_help(&mut self) -> &mut Self {
         self.arg("--footer")
             .arg(
-                "enter: select | ctrl-r: reload | ctrl-o: only open | ctrl-x: kill session | ctrl-d: delete workspace | space: jump | esc: cancel",
+                "enter: select | ctrl-r: reload | ctrl-o: show only open | ctrl-x: kill session | ctrl-d: delete workspace | space: jump | esc: cancel",
             )
             .arg("--footer-border");
 
