@@ -22,8 +22,16 @@ impl SelectorImpl for FzfSelector {
     }
 }
 
+fn add_delete_workspace_command(command: &mut Command) {
+    command.arg("--bind=ctrl-d:execute-silent(wsm remove --name {2})+reload-sync(wsm ls -o -n)");
+}
+
 fn add_reload_command(command: &mut Command) {
     command.arg("--bind=ctrl-r:reload(wsm ls -o -n)");
+}
+
+fn add_filter_only_open(command: &mut Command) {
+    command.arg("--bind=ctrl-o:reload(wsm ls -O -n)");
 }
 
 fn add_kill_session_command(command: &mut Command) {
@@ -38,7 +46,7 @@ impl FzfCommand for Command {
     fn add_help(&mut self) -> &mut Self {
         self.arg("--footer")
             .arg(
-                "enter: select | ctrl-r: reload | ctrl-x: kill session | space: jump | esc: cancel",
+                "enter: select | ctrl-r: reload | ctrl-o: only open | ctrl-x: kill session | ctrl-d: delete workspace | space: jump | esc: cancel",
             )
             .arg("--footer-border");
 
@@ -62,7 +70,9 @@ fn call_fzf_with_workspaces<'a>(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped());
 
+    add_delete_workspace_command(&mut command);
     add_reload_command(&mut command);
+    add_filter_only_open(&mut command);
     add_kill_session_command(&mut command);
 
     let mut child = command.spawn()?;

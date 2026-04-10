@@ -51,7 +51,12 @@ fn define_command() -> CommandDef {
         .add_arg("o", "open", ArgType::Flag, "open workspace after adding");
     let command = command.add_subcommand(add);
 
-    let remove = CommandDef::new("remove", "remove workspace from fzf");
+    let remove = CommandDef::new("remove", "remove workspace from fzf by path as default").add_arg(
+        "",
+        "name",
+        ArgType::Value,
+        "delete by workspace name",
+    );
     let command = command.add_subcommand(remove);
 
     let ls = CommandDef::new("ls", "list all workspaces added")
@@ -66,7 +71,9 @@ fn define_command() -> CommandDef {
             "open",
             ArgType::Flag,
             "toggle showing what workspace is open",
-        );
+        )
+        // only open workspaces
+        .add_arg("O", "only-open", ArgType::Flag, "only open workspaces");
     let command = command.add_subcommand(ls);
 
     let notify = CommandDef::new(
@@ -214,12 +221,13 @@ fn handle_ls(command: &Command) -> Result<()> {
 
     let show_notifications = command.get_arg("notifications").is_some();
     let show_open = command.get_arg("open").is_some();
+    let only_open = command.get_arg("only-open").is_some();
 
     let mut builder = WorkspacesBuilder::new(&config);
 
     let mut current_session = None;
 
-    if show_open {
+    if show_open || only_open {
         builder = builder.get_open_sessions(&session_manager);
         current_session = session_manager.get_current_session();
     }
@@ -229,6 +237,10 @@ fn handle_ls(command: &Command) -> Result<()> {
     }
 
     let mut workspaces = builder.build()?;
+
+    if only_open {
+        workspaces = workspaces.into_iter().filter(|w| w.is_open).collect();
+    }
 
     workspaces
         .sort_by(|a, b| order_by_notification(a, b).then_with(|| order_by_open_session(a, b)));
@@ -241,18 +253,26 @@ fn handle_ls(command: &Command) -> Result<()> {
 }
 
 fn handle_remove(cmd: &Command) -> Result<()> {
-    let positional = cmd.get_positional_string();
-    let path = get_path_from_str(&positional)?;
+    let by_name = cmd.get_arg("name").is_some();
     let mut config = Config::load()?;
 
-    if (config.has_ws(&path)) == false {
-        return Err(anyhow!("workspace does not exist"));
+    if by_name {
+        let Some(name) = cmd.get_arg_value("name") else {
+            return Err(anyhow!("name is required, use --name <name>"));
+        };
+        config.remove_ws_by_name(name);
+        println!("Removed workspace: {}", name);
+    } else {
+        let positional = cmd.get_positional_string();
+        let path = get_path_from_str(&positional)?;
+        if (config.has_ws(&path)) == false {
+            return Err(anyhow!("workspace does not exist"));
+        }
+        config.remove_ws(&path);
+        println!("Removed workspace: {}", path.display());
     }
-
-    config.remove_ws(&path);
     config.save()?;
 
-    println!("Removed workspace: {}", path.display());
     Ok(())
 }
 

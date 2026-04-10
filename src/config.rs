@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use std::fs;
 
-use crate::workspace::WorkspaceConfig;
+use crate::workspace::{WorkspaceConfig, WorkspaceName};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
@@ -63,6 +63,13 @@ impl Config {
             path: p.to_path_buf(),
         };
         self.workspaces.push(ws);
+    }
+
+    pub fn remove_ws_by_name(&mut self, name: &str) -> bool {
+        let original_len = self.workspaces.len();
+        self.workspaces
+            .retain(|ws| ws.get_name_or_last_path().ok().map(|ws| ws.trim()) != Some(name.trim()));
+        original_len > self.workspaces.len()
     }
 
     pub fn remove_ws(&mut self, path: &std::path::Path) -> bool {
