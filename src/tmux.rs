@@ -5,7 +5,7 @@ use std::{
 
 use crate::sessions::SessionManagerImpl;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 
 pub struct TmuxSessionManager;
 
@@ -97,6 +97,21 @@ impl SessionManagerImpl for TmuxSessionManager {
             .ok_or(anyhow!("Invalid tmux session name, missing (:)"))?;
 
         Ok(active_sessions)
+    }
+
+    fn list_pane_ids(&self) -> Result<std::collections::HashSet<String>> {
+        let output = Command::new("tmux")
+            .args(["list-panes", "-a", "-F", "#{pane_id}"])
+            .output()?;
+        if !output.status.success() {
+            return Ok(std::collections::HashSet::new());
+        }
+        let stdout = String::from_utf8(output.stdout)?;
+        Ok(stdout
+            .lines()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect())
     }
 
     fn kill_session(&self, session_name: &str) -> Result<()> {

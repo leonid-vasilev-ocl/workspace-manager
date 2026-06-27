@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use std::{
     cmp::Ordering,
     collections::HashSet,
@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::Config,
-    ns::{Notification, get_notification},
-    sessions::{SessionManager, SessionManagerImpl, get_formatted_session_name},
+    ns::{get_notification, is_running, Notification},
+    sessions::{get_formatted_session_name, SessionManager, SessionManagerImpl},
 };
 
 pub struct WorkspacesBuilder<'a> {
@@ -39,14 +39,20 @@ impl<'a> WorkspacesBuilder<'a> {
     }
 
     pub fn build(&self) -> Result<Vec<Workspace>> {
+        // Live tmux pane ids, used to prune stale running markers (instances whose
+        // pane was closed without a clean stop). None when there's no session info.
+        let live_panes = self.session_manager.and_then(|s| s.list_pane_ids().ok());
+
         let mut workspaces: Vec<Workspace> = self
             .config
             .get_ws_all()
             .into_iter()
             .map(|c| {
                 let mut notification = None;
+                let mut running = false;
                 if self.is_collect_notification {
                     notification = get_notification(c);
+                    running = is_running(c, live_panes.as_ref());
                 }
 
                 Workspace {
@@ -54,6 +60,7 @@ impl<'a> WorkspacesBuilder<'a> {
                     path: c.path.clone(),
                     notification,
                     is_open: false,
+                    is_running: running,
                 }
             })
             .collect();
@@ -84,6 +91,7 @@ pub struct Workspace {
     pub path: PathBuf,
     pub notification: Option<Notification>,
     pub is_open: bool,
+    pub is_running: bool,
 }
 
 //Ordering part
@@ -111,6 +119,10 @@ pub fn order_by_open_session(a: &Workspace, b: &Workspace) -> Ordering {
     let open_b = b.is_open;
 
     open_b.cmp(&open_a)
+}
+
+pub fn order_by_running(a: &Workspace, b: &Workspace) -> Ordering {
+    b.is_running.cmp(&a.is_running) // running first
 }
 
 pub trait WorkspaceName {

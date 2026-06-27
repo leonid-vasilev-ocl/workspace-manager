@@ -16,6 +16,7 @@ pub trait SessionManagerImpl {
     fn get_attached_session(&self) -> Option<String>;
     fn kill_session(&self, session_name: &str) -> Result<()>;
     fn get_current_session(&self) -> Option<String>;
+    fn list_pane_ids(&self) -> Result<std::collections::HashSet<String>>;
 }
 
 impl SessionManagerImpl for SessionManager {
@@ -63,6 +64,12 @@ impl SessionManagerImpl for SessionManager {
     fn get_current_session(&self) -> Option<String> {
         match self {
             Self::Tmux(tmux) => tmux.get_current_session(),
+        }
+    }
+
+    fn list_pane_ids(&self) -> Result<std::collections::HashSet<String>> {
+        match self {
+            Self::Tmux(tmux) => tmux.list_pane_ids(),
         }
     }
 }

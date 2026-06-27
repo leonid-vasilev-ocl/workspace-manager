@@ -17,10 +17,13 @@ use crate::{
     format::get_workspace_display_items,
     log::init_logger,
     selectors::Selector,
-    sessions::{SessionManager, SessionManagerImpl, get_formatted_session_name},
-    workspace::{WorkspaceName, WorkspacesBuilder, order_by_notification, order_by_open_session},
+    sessions::{get_formatted_session_name, SessionManager, SessionManagerImpl},
+    workspace::{
+        order_by_notification, order_by_open_session, order_by_running, WorkspaceName,
+        WorkspacesBuilder,
+    },
 };
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use std::path::PathBuf;
 
 fn define_command() -> CommandDef {
@@ -38,7 +41,8 @@ fn define_command() -> CommandDef {
         "print",
         ArgType::Flag,
         "creates workspace and prints name instead of switching",
-    );
+    )
+    .add_arg("O", "only-open", ArgType::Flag, "only show open workspaces");
     let command = command.add_subcommand(select);
 
     let add = CommandDef::new("add", "Add a workspace to fzf")
@@ -82,6 +86,9 @@ fn define_command() -> CommandDef {
     );
     let command = command.add_subcommand(notify);
 
+    let running = CommandDef::new("running", "mark workspace as running (green in selector)");
+    let command = command.add_subcommand(running);
+
     let kill = CommandDef::new("kill", "kill session by workspace name");
     let command = command.add_subcommand(kill);
 
@@ -121,6 +128,7 @@ fn handle_command() -> Result<()> {
         ["remove"] => handle_remove(&command),
         ["ls"] => handle_ls(&command),
         ["notify"] => handle_notify(&command),
+        ["running"] => handle_running(&command),
         ["kill"] => handle_kill(&command),
         _ => Err(anyhow!("Command not found")),
     };
@@ -150,6 +158,12 @@ fn handle_kill(command: &Command) -> Result<()> {
 fn handle_notify(command: &Command) -> Result<()> {
     let path = get_path_from_str(&command.get_positional_string())?;
     ns::notify(path.as_path())?;
+    Ok(())
+}
+
+fn handle_running(command: &Command) -> Result<()> {
+    let path = get_path_from_str(&command.get_positional_string())?;
+    ns::running(path.as_path())?;
     Ok(())
 }
 
@@ -242,8 +256,11 @@ fn handle_ls(command: &Command) -> Result<()> {
         workspaces = workspaces.into_iter().filter(|w| w.is_open).collect();
     }
 
-    workspaces
-        .sort_by(|a, b| order_by_notification(a, b).then_with(|| order_by_open_session(a, b)));
+    workspaces.sort_by(|a, b| {
+        order_by_notification(a, b)
+            .then_with(|| order_by_running(a, b))
+            .then_with(|| order_by_open_session(a, b))
+    });
 
     let display_items = get_workspace_display_items(&workspaces, current_session.as_deref())?;
     for item in display_items {
@@ -278,6 +295,7 @@ fn handle_remove(cmd: &Command) -> Result<()> {
 
 fn handle_ws_select(cmd: &Command) -> Result<()> {
     let only_print_session_name = cmd.get_arg("print").is_some();
+    let only_open = cmd.get_arg("only-open").is_some();
 
     let config = Config::load()?;
     let sessions = SessionManager::Tmux(tmux::TmuxSessionManager);
@@ -287,8 +305,15 @@ fn handle_ws_select(cmd: &Command) -> Result<()> {
         .collect_notifications()
         .build()?;
 
-    workspaces
-        .sort_by(|a, b| order_by_notification(a, b).then_with(|| order_by_open_session(a, b)));
+    workspaces.sort_by(|a, b| {
+        order_by_notification(a, b)
+            .then_with(|| order_by_running(a, b))
+            .then_with(|| order_by_open_session(a, b))
+    });
+
+    if only_open {
+        workspaces = workspaces.into_iter().filter(|w| w.is_open).collect();
+    }
 
     let selector = Selector::Fzf(fzf::FzfSelector);
 
