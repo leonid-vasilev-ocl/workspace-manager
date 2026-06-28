@@ -3,6 +3,16 @@
 `wsm` is a small Rust CLI that keeps a list of project directories and lets you jump
 into them with `fzf`, opening or switching to a matching `tmux` session.
 
+## Why
+
+I bounce between a lot of repositories every day (~70 at work). `wsm` keeps them all
+in one place: fuzzy-find a project with `fzf`, and `wsm` opens or switches to its
+`tmux` session. Coding agents (Claude, Codex) can call `wsm notify` when they finish
+a task, so the workspace that needs attention jumps to the top of the list with a
+bell — handy when you have agents running in several sessions at once.
+
+Hand-written to learn Rust — no AI-generated code.
+
 ## Requirements
 
 - Rust toolchain with 2024 edition support
@@ -96,6 +106,25 @@ wsm notify
 workspace directory basename. `<temp_dir>` is the platform temp directory used by
 Rust (`std::env::temp_dir()`).
 
+### With a coding agent
+
+Wire `wsm notify` into your agent's stop/finish hook so a long-running task flags its
+workspace when it's done. For example, a Claude Code `Stop` hook in
+`.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "wsm notify" }] }
+    ]
+  }
+}
+```
+
+The next `wsm select` shows that workspace at the top with a bell, cleared when you
+jump into it.
+
 ## Logging
 
 - `wsm` writes runtime logs to:
@@ -124,3 +153,7 @@ Example:
 ```
 
 You can edit this file by hand if needed.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
