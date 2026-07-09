@@ -86,9 +86,6 @@ fn define_command() -> CommandDef {
     );
     let command = command.add_subcommand(notify);
 
-    let running = CommandDef::new("running", "mark workspace as running (green in selector)");
-    let command = command.add_subcommand(running);
-
     let kill = CommandDef::new("kill", "kill session by workspace name");
     let command = command.add_subcommand(kill);
 
@@ -128,7 +125,6 @@ fn handle_command() -> Result<()> {
         ["remove"] => handle_remove(&command),
         ["ls"] => handle_ls(&command),
         ["notify"] => handle_notify(&command),
-        ["running"] => handle_running(&command),
         ["kill"] => handle_kill(&command),
         _ => Err(anyhow!("Command not found")),
     };
@@ -158,12 +154,6 @@ fn handle_kill(command: &Command) -> Result<()> {
 fn handle_notify(command: &Command) -> Result<()> {
     let path = get_path_from_str(&command.get_positional_string())?;
     ns::notify(path.as_path())?;
-    Ok(())
-}
-
-fn handle_running(command: &Command) -> Result<()> {
-    let path = get_path_from_str(&command.get_positional_string())?;
-    ns::running(path.as_path())?;
     Ok(())
 }
 

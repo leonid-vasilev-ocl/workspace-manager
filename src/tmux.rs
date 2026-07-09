@@ -99,19 +99,23 @@ impl SessionManagerImpl for TmuxSessionManager {
         Ok(active_sessions)
     }
 
-    fn list_pane_ids(&self) -> Result<std::collections::HashSet<String>> {
+    fn list_running_sessions(&self) -> Result<std::collections::HashSet<String>> {
         let output = Command::new("tmux")
-            .args(["list-panes", "-a", "-F", "#{pane_id}"])
+            .args(["list-panes", "-a", "-F", "#{session_name}\t#{pane_title}"])
             .output()?;
         if !output.status.success() {
             return Ok(std::collections::HashSet::new());
         }
         let stdout = String::from_utf8(output.stdout)?;
-        Ok(stdout
-            .lines()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect())
+        let mut set = std::collections::HashSet::new();
+        for line in stdout.lines() {
+            if let Some((session, title)) = line.split_once('\t') {
+                if title_is_running(title) {
+                    set.insert(session.to_string());
+                }
+            }
+        }
+        Ok(set)
     }
 
     fn kill_session(&self, session_name: &str) -> Result<()> {
@@ -122,6 +126,13 @@ impl SessionManagerImpl for TmuxSessionManager {
             .status()?;
         Ok(())
     }
+}
+
+/// A Claude pane title leads with a braille spinner glyph (U+2800–U+28FF) while
+/// it is working; idle shows a sparkle/dingbat (U+2700–27FF). Same signal the
+/// tmux status bar uses to color its running indicator.
+fn title_is_running(title: &str) -> bool {
+    matches!(title.chars().next(), Some(c) if ('\u{2800}'..='\u{28FF}').contains(&c))
 }
 
 fn is_in_tmux() -> bool {

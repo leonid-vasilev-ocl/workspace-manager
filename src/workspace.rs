@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::Config,
-    ns::{get_notification, is_running, Notification},
+    ns::{get_notification, Notification},
     sessions::{get_formatted_session_name, SessionManager, SessionManagerImpl},
 };
 
@@ -39,20 +39,14 @@ impl<'a> WorkspacesBuilder<'a> {
     }
 
     pub fn build(&self) -> Result<Vec<Workspace>> {
-        // Live tmux pane ids, used to prune stale running markers (instances whose
-        // pane was closed without a clean stop). None when there's no session info.
-        let live_panes = self.session_manager.and_then(|s| s.list_pane_ids().ok());
-
         let mut workspaces: Vec<Workspace> = self
             .config
             .get_ws_all()
             .into_iter()
             .map(|c| {
                 let mut notification = None;
-                let mut running = false;
                 if self.is_collect_notification {
                     notification = get_notification(c);
-                    running = is_running(c, live_panes.as_ref());
                 }
 
                 Workspace {
@@ -60,7 +54,7 @@ impl<'a> WorkspacesBuilder<'a> {
                     path: c.path.clone(),
                     notification,
                     is_open: false,
-                    is_running: running,
+                    is_running: false,
                 }
             })
             .collect();
@@ -68,10 +62,12 @@ impl<'a> WorkspacesBuilder<'a> {
         if let Some(sessions) = self.session_manager {
             let active_sessions_names: HashSet<String> =
                 sessions.list_active_sessions()?.into_iter().collect();
+            let running_sessions = sessions.list_running_sessions().unwrap_or_default();
             for ws in workspaces.iter_mut() {
                 let ws_name = ws.get_name_or_last_path()?;
                 let ws_name = get_formatted_session_name(ws_name);
                 ws.is_open = active_sessions_names.contains(&ws_name);
+                ws.is_running = running_sessions.contains(&ws_name);
             }
         }
 
